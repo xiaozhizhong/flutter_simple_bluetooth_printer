@@ -7,19 +7,24 @@ class BluetoothDevice {
   String address;
   int rssi;
 
-  /// Android Only, Device type, @see android.bluetooth.BluetoothDevice
+  /// Android Only, Device type, @see android.bluetooth.BluetoothDevice.
+  /// In iOS, it's always null.
   BluetoothAndroidDeviceType? androidType;
 
   /// Android Only, @see android.bluetooth.BluetoothDevice
+  /// In iOS, it's always null.
   int? androidDeviceClass;
 
   /// Android Only, @see android.bluetooth.BluetoothDevice
+  /// In iOS, it's always null.
   int? androidMajorDeviceClass;
 
   /// Android Only, @see android.bluetooth.BluetoothDevice
+  /// In iOS, it's always null.
   BluetoothAndroidBondState? androidBondState;
 
   /// iOS Only, CoreBluetooth.CBAdvertisementData
+  /// In Android, it's always null.
   /// Format keys are defined in [BluetoothIOSAdvertisementDataKey]
   Map<String, String>? iOSAdvertisementData;
 
@@ -40,14 +45,14 @@ class BluetoothDevice {
 
   factory BluetoothDevice.fromMap(Map map) {
     return BluetoothDevice(
-        name: map['name'] ?? "",
-        address: map['address'] ?? "",
-        rssi: map['rssi'] ?? -1,
-        androidType: BluetoothAndroidDeviceType.fromKey(map['type'] ?? 0),
-        androidDeviceClass: map['deviceClass'] ?? -1,
-        androidMajorDeviceClass: map['majorDeviceClass'] ?? -1,
-        androidBondState: BluetoothAndroidBondState.fromKey(map['bondState'] ?? -1),
-        iOSAdvertisementData: map['advertisementData']?.cast<String, String>(),
+      name: map['name'] ?? "",
+      address: map['address'] ?? "",
+      rssi: map['rssi'] ?? -1,
+      androidType: map.containsKey('type') ? BluetoothAndroidDeviceType.fromKey(map['type']) : null,
+      androidDeviceClass: map['deviceClass'],
+      androidMajorDeviceClass: map['majorDeviceClass'],
+      androidBondState: BluetoothAndroidBondState.fromKey(map['bondState']),
+      iOSAdvertisementData: map['advertisementData']?.cast<String, String>(),
     );
   }
 }

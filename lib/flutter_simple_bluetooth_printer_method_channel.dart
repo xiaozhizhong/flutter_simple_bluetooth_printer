@@ -74,13 +74,10 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
       // Clear result
       _scanResults.add([]);
       await methodChannel.invokeMethod("startDiscovery");
-
-      await for (dynamic data
-          in _scanResultMethodStream.takeUntil(_stopScanPill).doOnDone(stopDiscovery).map((event) => event.arguments)) {
-        var device = BluetoothDevice.fromMap(data);
-        if (!_tryAddDevice(device)) continue;
-        yield device;
-      }
+      yield* _scanResultMethodStream.takeUntil(_stopScanPill)
+          .doOnDone(stopDiscovery)
+          .map((event) => event.arguments)
+          .transform(StreamTransformer(_addDeviceTransform));
     } on BTException catch (_) {
       rethrow;
     } on PlatformException catch (e) {
@@ -88,8 +85,29 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
     }
   }
 
+
+  StreamSubscription<BluetoothDevice> _addDeviceTransform(Stream<dynamic> input, bool cancelOnError) {
+    var controller = StreamController<BluetoothDevice>(sync: true);
+    controller.onListen = () {
+      var subscription = input.listen((data) {
+        var device = BluetoothDevice.fromMap(data);
+        if (_tryAddDevice(device)) {
+          controller.add(device);
+        }
+      },
+          onError: controller.addError,
+          onDone: controller.close,
+          cancelOnError: cancelOnError);
+      controller
+        ..onPause = subscription.pause
+        ..onResume = subscription.resume
+        ..onCancel = subscription.cancel;
+    };
+    return controller.stream.listen(null);
+  }
+
   bool _tryAddDevice(BluetoothDevice device) {
-    final list = _scanResults.value;
+    final list = _scanResults.valueOrNull ?? [];
     if (!list.any((element) => element.address == device.address)) {
       list.add(device);
       _scanResults.add(list);

@@ -4,6 +4,10 @@ import 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
 import 'flutter_simple_bluetooth_printer_platform_interface.dart';
 
+export 'package:flutter_simple_bluetooth_printer/models/BTError.dart';
+export 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
+export 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
+
 /// By Xiao 2023/1
 class FlutterSimpleBluetoothPrinter {
   FlutterSimpleBluetoothPrinter._();
@@ -47,7 +51,8 @@ class FlutterSimpleBluetoothPrinter {
   }
 
   /// Disconnect from a Bluetooth device.
-  /// Throw [BTException] if failed.
+  /// Return bool as result.
+  /// Throw [BTException] when error.
   Future<bool> disconnect() {
     return FlutterSimpleBluetoothPrinterPlatform.instance.disconnect();
   }
@@ -62,14 +67,16 @@ class FlutterSimpleBluetoothPrinter {
 
   /// Write text to the connected device.
   /// * Must connect to a device first.
-  /// Throw [BTException] if failed.
+  /// Return bool as result.
+  /// Throw [BTException] when error.
   Future<bool> writeText(String text) {
     return FlutterSimpleBluetoothPrinterPlatform.instance.writeText(text);
   }
 
   /// Write raw data to the connected device.
   /// * Must connect to a device first.
-  /// Throw [BTException] if failed.
+  /// Return bool as result.
+  /// Throw [BTException] when error.
   Future<bool> writeRawData(Uint8List bytes) {
     return FlutterSimpleBluetoothPrinterPlatform.instance.writeRawData(bytes);
   }

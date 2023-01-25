@@ -3,9 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_simple_bluetooth_printer/flutter_simple_bluetooth_printer.dart';
-import 'package:flutter_simple_bluetooth_printer/models/BTError.dart';
-import 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
-import 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
 
 void main() {
   runApp(const MyApp());
