@@ -51,7 +51,7 @@ class BluetoothDevice {
       androidType: map.containsKey('type') ? BluetoothAndroidDeviceType.fromKey(map['type']) : null,
       androidDeviceClass: map['deviceClass'],
       androidMajorDeviceClass: map['majorDeviceClass'],
-      androidBondState: BluetoothAndroidBondState.fromKey(map['bondState']),
+      androidBondState: map.containsKey('bondState') ? BluetoothAndroidBondState.fromKey(map['bondState']) : null,
       iOSAdvertisementData: map['advertisementData']?.cast<String, String>(),
     );
   }

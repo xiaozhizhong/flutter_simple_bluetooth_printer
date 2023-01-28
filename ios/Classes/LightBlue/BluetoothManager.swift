@@ -220,7 +220,7 @@ public class BluetoothManager : NSObject, CBCentralManagerDelegate, CBPeripheral
      *								was not available.
      */
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        print("Bluetooth Manager --> didDiscoverPeripheral, RSSI:\(RSSI)")
+        //print("Bluetooth Manager --> didDiscoverPeripheral, RSSI:\(RSSI)")
         delegate?.didDiscoverPeripheral?(peripheral, advertisementData: advertisementData, RSSI: RSSI)
     }
     

@@ -174,7 +174,6 @@ public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,F
         if peripheral.name == nil || peripheral.name!.isEmpty {
             return
         }
-        print("find peripheral -> \(peripheral.name!)")
 
         let peripheralInfo = PeripheralInfos(peripheral,RSSI.intValue)
         if !nearbyPeripheralInfos.contains(peripheralInfo) {
@@ -197,6 +196,7 @@ public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,F
             originPeripheralInfo.advertisementData = advertisementData
             return
         }
+        print("find peripheral -> \(peripheral.name!)")
 
         let device = BluetoothDevice(peripheralInfo).toMap()
         _sendMessageToFlutter(method: "scanResult", argument: device)
