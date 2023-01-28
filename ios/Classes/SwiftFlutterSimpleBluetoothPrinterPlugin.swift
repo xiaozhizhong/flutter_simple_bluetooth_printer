@@ -78,6 +78,7 @@ public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,F
     private func _discovery(_ result: FlutterResult) {
         // Results will callback in didDiscoverPeripheral
         result(true)
+        nearbyPeripheralInfos.removeAll()
         bluetoothManager.startScanPeripheral()
     }
 
