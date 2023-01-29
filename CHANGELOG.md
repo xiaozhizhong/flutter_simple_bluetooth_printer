@@ -6,3 +6,6 @@
 
 ## 0.1.2
 * fix androidBondState parse error for iOS.
+
+## 0.1.3
+* downgrade minimum DartSdk to 2.18.0 and upgrade minimum Flutter to 3.3.0
