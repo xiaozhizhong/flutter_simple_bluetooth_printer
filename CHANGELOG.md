@@ -9,3 +9,6 @@
 
 ## 0.1.3
 * downgrade minimum DartSdk to 2.18.0 and upgrade minimum Flutter to 3.3.0
+
+## 0.1.4
+* expose scanResults

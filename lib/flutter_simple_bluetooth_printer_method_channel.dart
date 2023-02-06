@@ -42,6 +42,7 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
 
   final BehaviorSubject<List<BluetoothDevice>> _scanResults = BehaviorSubject.seeded([]);
 
+  @override
   Stream<List<BluetoothDevice>> get scanResults => _scanResults.stream;
 
   final StreamController<BTConnectState> _connectStateStreamController = StreamController.broadcast();
