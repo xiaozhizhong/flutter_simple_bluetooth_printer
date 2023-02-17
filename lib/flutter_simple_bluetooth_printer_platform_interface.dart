@@ -31,6 +31,8 @@ abstract class FlutterSimpleBluetoothPrinterPlatform extends PlatformInterface {
     throw UnimplementedError('platformVersion() has not been implemented.');
   }
 
+  Stream<List<BluetoothDevice>> get scanResults;
+
   Stream<BluetoothDevice> discovery() async* {
     throw UnimplementedError('discovery() has not been implemented.');
   }

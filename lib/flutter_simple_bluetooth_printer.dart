@@ -23,6 +23,9 @@ class FlutterSimpleBluetoothPrinter {
     return FlutterSimpleBluetoothPrinterPlatform.instance.getAndroidPairedDevices();
   }
 
+  /// Get the Discovery result stream.
+  Stream<List<BluetoothDevice>> get scanResults => FlutterSimpleBluetoothPrinterPlatform.instance.scanResults;
+
   /// Starts scan for Bluetooth LE devices
   /// Note: This is a continuous behavior, don't forget to call [stopDiscovery].
   /// Throw [BTException] if failed.
