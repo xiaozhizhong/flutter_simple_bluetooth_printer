@@ -74,7 +74,8 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
       // Clear result
       _scanResults.add([]);
       await methodChannel.invokeMethod("startDiscovery");
-      yield* _scanResultMethodStream.takeUntil(_stopScanPill)
+      yield* _scanResultMethodStream
+          .takeUntil(_stopScanPill)
           .doOnDone(stopDiscovery)
           .map((event) => event.arguments)
           .transform(StreamTransformer(_addDeviceTransform));
@@ -85,7 +86,6 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
     }
   }
 
-
   StreamSubscription<BluetoothDevice> _addDeviceTransform(Stream<dynamic> input, bool cancelOnError) {
     var controller = StreamController<BluetoothDevice>(sync: true);
     controller.onListen = () {
@@ -94,10 +94,7 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
         if (_tryAddDevice(device)) {
           controller.add(device);
         }
-      },
-          onError: controller.addError,
-          onDone: controller.close,
-          cancelOnError: cancelOnError);
+      }, onError: controller.addError, onDone: controller.close, cancelOnError: cancelOnError);
       controller
         ..onPause = subscription.pause
         ..onResume = subscription.resume
@@ -187,16 +184,16 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
   /// Write text to the connected device. Must connect to a device first.
   /// Throw [BTException] if failed.
   @override
-  Future<bool> writeText(String text) async {
-    return writeRawData(utf8.encode(text) as Uint8List);
+  Future<bool> writeText(String text, {String? characteristicUuid}) async {
+    return writeRawData(utf8.encode(text) as Uint8List, characteristicUuid: characteristicUuid);
   }
 
   /// Write raw data to the connected device. Must connect to a device first.
   /// Throw [BTException] if failed.
   @override
-  Future<bool> writeRawData(Uint8List bytes) async {
+  Future<bool> writeRawData(Uint8List bytes, {String? characteristicUuid}) async {
     try {
-      Map<String, dynamic> args = {"bytes": bytes, "isBLE": _isBLE};
+      Map<String, dynamic> args = {"bytes": bytes, "isBLE": _isBLE, "characteristicUuid": characteristicUuid};
       return await methodChannel.invokeMethod("writeData", args);
     } on PlatformException catch (e) {
       throw BTException.fromPlatform(e);

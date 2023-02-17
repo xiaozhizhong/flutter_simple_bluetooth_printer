@@ -58,11 +58,11 @@ abstract class FlutterSimpleBluetoothPrinterPlatform extends PlatformInterface {
     throw UnimplementedError('currentConnectState() has not been implemented.');
   }
 
-  Future<bool> writeText(String text) async {
+  Future<bool> writeText(String text, {String? characteristicUuid}) async {
     throw UnimplementedError('writeText() has not been implemented.');
   }
 
-  Future<bool> writeRawData(Uint8List bytes) async {
+  Future<bool> writeRawData(Uint8List bytes, {String? characteristicUuid}) async {
     throw UnimplementedError('writeRawData() has not been implemented.');
   }
 }

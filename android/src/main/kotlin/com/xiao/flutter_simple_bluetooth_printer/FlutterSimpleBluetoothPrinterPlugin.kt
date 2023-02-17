@@ -116,7 +116,8 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
             "writeData" -> ensureBluetoothAvailable(isScan = false, result = result) {
                 val bytes: ByteArray = call.argument("bytes")!!
                 val isBle: Boolean = call.argument("isBLE") ?: false
-                if (isBle) bleManager.writeRawData(bytes, result.toWrapper)
+                val characteristicUuid : String? = call.argument("characteristicUuid")
+                if (isBle) bleManager.writeRawData(bytes, result.toWrapper, characteristicUuid)
                 else classicManager.writeRawData(bytes, result.toWrapper)
             }
             else -> {

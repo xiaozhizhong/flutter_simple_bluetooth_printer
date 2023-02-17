@@ -1,6 +1,6 @@
 name: flutter_simple_bluetooth_printer
 description: A Flutter plugin for connecting Bluetooth printer, support both Android and iOS.
-version: 0.1.3
+version: 0.1.4
 homepage: https://github.com/xiaozhizhong/flutter_simple_bluetooth_printer
 
 environment:

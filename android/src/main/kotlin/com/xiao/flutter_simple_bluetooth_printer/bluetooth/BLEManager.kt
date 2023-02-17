@@ -14,6 +14,7 @@ import io.reactivex.rxjava3.core.Single
 import java.util.concurrent.TimeUnit
 import io.flutter.plugin.common.MethodChannel
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
+import java.util.*
 
 /**
  * @author Xiao
@@ -22,6 +23,10 @@ import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
  */
 
 class BLEManager(context: Context) : IBluetoothManager() {
+    companion object {
+        const val CLIENT_CHARACTERISTIC_CONFIG = "00002902-0000-1000-8000-00805f9b34fb"
+    }
+
     val rxBleClient: RxBleClient = RxBleClient.create(context)
 
     private var scanDisposable: Disposable? = null
@@ -146,14 +151,19 @@ class BLEManager(context: Context) : IBluetoothManager() {
         }
     }
 
-    fun writeRawData(data: ByteArray, result: FlutterResultWrapper) {
+    fun writeRawData(data: ByteArray, result: FlutterResultWrapper, characteristicUuid: String?) {
         if (connection == null) {
             result.error(BTError.ErrorWithMessage.ordinal.toString(), "connection is null", null)
             return
         }
-        getWritableCharacteristic().toObservable().take(1).switchMap {
-            connection!!.writeCharacteristic(it, data).toObservable()
-        }.subscribe(
+        val writeObserver = if (characteristicUuid.isNullOrEmpty()) {
+            getWritableCharacteristic().toObservable().take(1).switchMap {
+                connection!!.writeCharacteristic(it, data).toObservable()
+            }
+        } else {
+            connection!!.writeCharacteristic(UUID.fromString(characteristicUuid), data).toObservable()
+        }
+        writeObserver.subscribe(
             { result.success(true) },
             { throwable ->
                 val error = throwable.toFlutterPlatformError
@@ -165,9 +175,14 @@ class BLEManager(context: Context) : IBluetoothManager() {
     private fun getWritableCharacteristic(): Single<BluetoothGattCharacteristic> {
         return connection!!.discoverServices()
             .flatMap { services ->
-                val characteristic = services.bluetoothGattServices
+                var characteristic = services.bluetoothGattServices
                     .flatMap { it.characteristics.filter { char -> char.isWriteable } }
                     .minByOrNull { it.uuid }
+                if (characteristic == null) {
+                    characteristic = services.bluetoothGattServices.flatMap { it.characteristics }.firstNotNullOfOrNull {
+                        if (it.getDescriptor(UUID.fromString(CLIENT_CHARACTERISTIC_CONFIG)) != null) it else null
+                    }
+                }
                 if (characteristic == null) {
                     Single.error(BTError.ErrorWithMessage.toError("can't not found writable characteristic"))
                 } else {
@@ -198,7 +213,7 @@ class BLEManager(context: Context) : IBluetoothManager() {
         }
 
     private fun doUpdateConnectionState(state: BTConnectState?) {
-        state ?:return
+        state ?: return
         if (currentConnectState == state) return
         currentConnectState = state
         updateConnectionState(state)
@@ -213,4 +228,6 @@ private val BluetoothGattCharacteristic.isReadable: Boolean
     get() = properties and BluetoothGattCharacteristic.PROPERTY_READ != 0
 
 private val BluetoothGattCharacteristic.isWriteable: Boolean
-    get() = properties  == BluetoothGattCharacteristic.PROPERTY_WRITE ||  properties == BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
+    get() = properties == BluetoothGattCharacteristic.PROPERTY_WRITE
+            || properties == BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE
+            || properties == BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE

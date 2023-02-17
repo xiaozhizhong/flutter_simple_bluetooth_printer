@@ -69,15 +69,17 @@ class FlutterSimpleBluetoothPrinter {
   /// * Must connect to a device first.
   /// Return bool as result.
   /// Throw [BTException] when error.
-  Future<bool> writeText(String text) {
-    return FlutterSimpleBluetoothPrinterPlatform.instance.writeText(text);
+  /// [characteristicUuid] Only BLE, specific the characteristic to write. If null, will use the first writable characteristic.
+  Future<bool> writeText(String text, {String? characteristicUuid}) {
+    return FlutterSimpleBluetoothPrinterPlatform.instance.writeText(text, characteristicUuid: characteristicUuid);
   }
 
   /// Write raw data to the connected device.
   /// * Must connect to a device first.
   /// Return bool as result.
   /// Throw [BTException] when error.
-  Future<bool> writeRawData(Uint8List bytes) {
-    return FlutterSimpleBluetoothPrinterPlatform.instance.writeRawData(bytes);
+  /// [characteristicUuid] Only BLE, specific the characteristic to write. If null, will use the first writable characteristic.
+  Future<bool> writeRawData(Uint8List bytes, {String? characteristicUuid}) {
+    return FlutterSimpleBluetoothPrinterPlatform.instance.writeRawData(bytes, characteristicUuid: characteristicUuid);
   }
 }
