@@ -165,7 +165,7 @@ public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,F
             _sendbackWriteResult(false)
             return
         }
-        bluetoothManager.writeValue(data: _pendingWriteData!.data, forCharacteristic: toWriteCharacteristic!, type: .withResponse)
+        bluetoothManager.writeValue(data: _pendingWriteData!.data, forCharacteristic: toWriteCharacteristic!, type: .withoutResponse)
         _pendingWriteData = nil
     }
     
