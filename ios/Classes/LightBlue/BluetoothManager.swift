@@ -45,9 +45,8 @@ public class BluetoothManager : NSObject, CBCentralManagerDelegate, CBPeripheral
     */
     func initCBCentralManager() {
         var dic : [String : Any] = Dictionary()
-        dic[CBCentralManagerOptionShowPowerAlertKey] = false
+        dic[CBCentralManagerOptionShowPowerAlertKey] = true
         _manager = CBCentralManager(delegate: self, queue: nil, options: dic)
-        
     }
     
     /**

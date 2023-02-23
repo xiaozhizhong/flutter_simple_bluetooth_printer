@@ -31,6 +31,7 @@ public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,F
     var _connectResult: FlutterResult? = nil
     var _writeResult: FlutterResult? = nil
     var _pendingWriteData: FlutterStandardTypedData? = nil
+    var _specificCharacteristicUUID: String? = nil
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
@@ -120,6 +121,7 @@ public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,F
             return
         }
         _pendingWriteData = arguments["bytes"] as? FlutterStandardTypedData
+        _specificCharacteristicUUID = arguments["characteristicUuid"] as? String
         _writeResult = result
         // Discover services and then discover characteristics. After all discovered, will do write in _writeWithCharacteristics
         // Result will callback in didDiscoverServices & didDiscoverCharacteritics & didFailToDiscoverCharacteritics
@@ -135,30 +137,35 @@ public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,F
             _sendbackWriteResult(false)
             return
         }
-        var toWriteCharacteristics: [CBCharacteristic]? = nil
-        for service in peripheral.services! {
-            guard let characteristics = service.characteristics else {
-                continue
-            }
-            let writableCharacteristics = characteristics.filter{(element)-> Bool in element.properties.names.contains("Write")}
-                .sorted{(s1,s2)-> Bool in
-                    let uuid1 = s1.uuid.UUIDValue!.integers
-                    let uuid2 = s2.uuid.UUIDValue!.integers
-                    if uuid1.0 == uuid2.0 {
-                        return abs(uuid1.0) > abs(uuid2.1)
-                    }
-                    return abs(uuid1.0) > abs(uuid2.0)
+        var toWriteCharacteristic: CBCharacteristic? = nil
+        if _specificCharacteristicUUID != nil {
+            toWriteCharacteristic = peripheral.services!.flatMap{ $0.characteristics ?? [] }.first(where: {$0.uuid.uuidString == _specificCharacteristicUUID})
+        } else {
+            for service in peripheral.services! {
+                guard let characteristics = service.characteristics else {
+                    continue
                 }
-            if(!writableCharacteristics.isEmpty){
-                toWriteCharacteristics = writableCharacteristics
+                let writableCharacteristics = characteristics.filter{(element)-> Bool in element.properties.names.contains("Write")}
+                    .sorted{(s1,s2)-> Bool in
+                        let uuid1 = s1.uuid.UUIDValue!.integers
+                        let uuid2 = s2.uuid.UUIDValue!.integers
+                        if uuid1.0 == uuid2.0 {
+                            return abs(uuid1.0) > abs(uuid2.1)
+                        }
+                        return abs(uuid1.0) > abs(uuid2.0)
+                    }
+                if(!writableCharacteristics.isEmpty){
+                    toWriteCharacteristic = writableCharacteristics.first
+                }
             }
         }
-        if toWriteCharacteristics == nil || toWriteCharacteristics!.isEmpty{
+       
+        if toWriteCharacteristic == nil {
             // No CBCharacteristic to handle write
             _sendbackWriteResult(false)
             return
         }
-        bluetoothManager.writeValue(data: _pendingWriteData!.data, forCharacteristic: toWriteCharacteristics!.first!, type: .withResponse)
+        bluetoothManager.writeValue(data: _pendingWriteData!.data, forCharacteristic: toWriteCharacteristic!, type: .withResponse)
         _pendingWriteData = nil
     }
     

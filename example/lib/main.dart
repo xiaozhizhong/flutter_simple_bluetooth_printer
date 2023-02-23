@@ -78,16 +78,12 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  void _discovery(){
+  void _discovery() {
     devices.clear();
-    try{
-      bluetoothManager.discovery().listen((device) {
-        devices.add(device);
-        setState(() {});
-      });
-    }on BTException catch(e){
-      print(e);
-    }
+    bluetoothManager.discovery().listen((device) {
+      devices.add(device);
+      setState(() {});
+    }, onError: (e) => print(e));
   }
 
   void selectDevice(BluetoothDevice device) async {
@@ -109,7 +105,7 @@ class _MyAppState extends State<MyApp> {
     try {
       await _connectDevice();
       if (!_isConnected) return;
-      final isSuccess = await bluetoothManager.writeText(codes);
+      final isSuccess = await bluetoothManager.writeText(codes, characteristicUuid: "FF00");
       if (isSuccess) {
         await bluetoothManager.disconnect();
       }
