@@ -156,21 +156,29 @@ class BLEManager(context: Context) : IBluetoothManager() {
             result.error(BTError.ErrorWithMessage.ordinal.toString(), "connection is null", null)
             return
         }
-        val writeObserver = if (characteristicUuid.isNullOrEmpty()) {
-            getWritableCharacteristic().toObservable().take(1).switchMap {
-                connection!!.writeCharacteristic(it, data).toObservable()
-            }
+        val characteristicUUID = if (characteristicUuid.isNullOrEmpty()) {
+            getWritableCharacteristic().toObservable().take(1).map { it.uuid }
         } else {
-            connection!!.writeCharacteristic(UUID.fromString(characteristicUuid), data).toObservable()
+            io.reactivex.rxjava3.core.Observable.just(UUID.fromString(characteristicUuid))
         }
-        writeObserver.subscribe(
-            { result.success(true) },
-            { throwable ->
-                val error = throwable.toFlutterPlatformError
-                result.error(error.code, error.message, error.details)
-            }
-        )
+        val longWrite = data.size > connection!!.mtu
+        characteristicUUID
+            .switchMap { if (longWrite) performLongWrite(data, it) else performWrite(data, it) }
+            .subscribe(
+                { result.success(true) },
+                { throwable ->
+                    val error = throwable.toFlutterPlatformError
+                    result.error(error.code, error.message, error.details)
+                }
+            )
     }
+
+    private fun performWrite(data: ByteArray, characteristicUuid: UUID) =
+        connection!!.writeCharacteristic(characteristicUuid, data).toObservable()
+
+    private fun performLongWrite(data: ByteArray, characteristicUuid: UUID) =
+        connection!!.createNewLongWriteBuilder().setBytes(data).setCharacteristicUuid(characteristicUuid).build()
+
 
     private fun getWritableCharacteristic(): Single<BluetoothGattCharacteristic> {
         return connection!!.discoverServices()
