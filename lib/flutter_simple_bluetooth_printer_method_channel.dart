@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_simple_bluetooth_printer/models/BTError.dart';
+import 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
 import 'package:rxdart/rxdart.dart';
@@ -51,6 +52,12 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
   Stream<BTConnectState> get connectState => _connectStateStreamController.stream;
 
   bool _isBLE = false;
+
+  @override
+  Future<BTState> getBluetoothState() async {
+    var state = await methodChannel.invokeMethod("getBluetoothState");
+    return BTState.from(state);
+  }
 
   /// Get paired devices for Android.
   /// For iOS, it will return an empty list.

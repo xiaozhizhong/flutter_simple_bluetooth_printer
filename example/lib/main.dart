@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_simple_bluetooth_printer/flutter_simple_bluetooth_printer.dart';
+import 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
 
 void main() {
   runApp(const MyApp());
@@ -55,6 +57,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _scan() async {
+    if (!await _ensureBluetoothAvailable()) return;
     devices.clear();
     try {
       setState(() {
@@ -78,12 +81,22 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  void _discovery() {
+  void _discovery() async {
+    if (!await _ensureBluetoothAvailable()) return;
     devices.clear();
     bluetoothManager.discovery().listen((device) {
       devices.add(device);
       setState(() {});
     }, onError: (e) => print(e));
+  }
+
+  Future<bool> _ensureBluetoothAvailable() async {
+    final state = await bluetoothManager.getBluetoothState();
+    if (state != BTState.available) {
+      debugPrint("Bluetooth is not available, State: ${state.name}");
+      return false;
+    }
+    return true;
   }
 
   void selectDevice(BluetoothDevice device) async {
@@ -98,6 +111,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _print2X1() async {
+    if (!await _ensureBluetoothAvailable()) return;
     if (selectedPrinter == null) return;
     final codes =
         "^XA\r\n^MMT\r\n^PW384\r\n^LL0253\r\n^LS0\r\n^BY2,3,81^FT375,92^BCI,,N,N\r\n^FDILP-107661^FS\r\n^FT375,191^A0I,45,45^FH\\^FDILP-107661^FS\r\n^FT374,27^A0I,23,24^FH\\^FD^FS\r\n^FT372,59^A0I,23,24^FH\\^FD^FS\r\n^PQ1,0,1,Y^PQ1^XZ\r\n";
@@ -105,7 +119,9 @@ class _MyAppState extends State<MyApp> {
     try {
       await _connectDevice();
       if (!_isConnected) return;
-      final isSuccess = await bluetoothManager.writeText(codes, characteristicUuid: "FF00");
+      final isSuccess = await bluetoothManager.writeText(codes,
+          // characteristicUuid: "FF00"
+      );
       if (isSuccess) {
         await bluetoothManager.disconnect();
       }

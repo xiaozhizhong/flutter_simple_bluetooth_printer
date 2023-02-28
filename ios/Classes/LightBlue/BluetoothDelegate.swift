@@ -17,7 +17,7 @@ import CoreBluetooth
      
      - parameter state: The newest state
      */
-    @objc optional func didUpdateState(_ state: CBCentralManagerState)
+    @objc optional func didUpdateState(_ state: CBManagerState)
     
     /**
      The callback function when peripheral has been found.

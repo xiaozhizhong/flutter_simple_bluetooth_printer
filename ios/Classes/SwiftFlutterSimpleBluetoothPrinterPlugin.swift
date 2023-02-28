@@ -9,6 +9,7 @@ import CoreBluetooth
 //
 
 let PluginNameSpace = "flutter_simple_bluetooth_printer"
+typealias stateBlock = (_ state:CBManagerState) -> Void
 
 public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,FlutterStreamHandler, BluetoothDelegate {
 
@@ -35,6 +36,7 @@ public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,F
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
+        case "getBluetoothState": _getBluetoothState(result)
         case "startDiscovery":
             _ensureBluetoothAvailable(result){
                 _discovery(result)
@@ -59,6 +61,20 @@ public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,F
             }
         default:
             result(FlutterMethodNotImplemented)
+        }
+    }
+    
+    private var _stateCallback : stateBlock?
+    
+    private func _getBluetoothState(_ result: @escaping FlutterResult){
+        let state = bluetoothManager.state
+        if state == .unknown || state == .resetting {
+            // waiting for update
+            _stateCallback = { newState in
+                result(newState.rawValue)
+            }
+        } else {
+            result(state?.rawValue)
         }
     }
     
@@ -165,7 +181,7 @@ public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,F
             _sendbackWriteResult(false)
             return
         }
-        bluetoothManager.writeValue(data: _pendingWriteData!.data, forCharacteristic: toWriteCharacteristic!, type: .withoutResponse)
+        bluetoothManager.writeValue(data: _pendingWriteData!.data, forCharacteristic: toWriteCharacteristic!, type: .withResponse)
         _pendingWriteData = nil
     }
     
@@ -175,6 +191,13 @@ public class SwiftFlutterSimpleBluetoothPrinterPlugin: NSObject, FlutterPlugin,F
         }
         _writeResult!(data)
         _writeResult = nil
+    }
+    
+    public func didUpdateState(_ state: CBManagerState){
+        if _stateCallback != nil {
+            _stateCallback!(state)
+            _stateCallback = nil
+        }
     }
     
     public func didDiscoverPeripheral(_ peripheral: CoreBluetooth.CBPeripheral, advertisementData: [String: Any], RSSI: NSNumber) {

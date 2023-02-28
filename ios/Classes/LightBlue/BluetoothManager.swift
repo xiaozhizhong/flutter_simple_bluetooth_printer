@@ -13,11 +13,11 @@ public class BluetoothManager : NSObject, CBCentralManagerDelegate, CBPeripheral
     var _manager : CBCentralManager?
     var delegate : BluetoothDelegate?
     private(set) var connected = false
-    var state: CBCentralManagerState? {
+    var state: CBManagerState? {
         guard _manager != nil else {
             return nil
         }
-        return CBCentralManagerState(rawValue: (_manager?.state.rawValue)!)
+        return CBManagerState(rawValue: (_manager?.state.rawValue)!)
     }
     private var timeoutMonitor : Timer? /// Timeout monitor of connect to peripheral
     private var interrogateMonitor : Timer? /// Timeout monitor of interrogate the peripheral
@@ -45,7 +45,7 @@ public class BluetoothManager : NSObject, CBCentralManagerDelegate, CBPeripheral
     */
     func initCBCentralManager() {
         var dic : [String : Any] = Dictionary()
-        dic[CBCentralManagerOptionShowPowerAlertKey] = true
+        dic[CBCentralManagerOptionShowPowerAlertKey] = false
         _manager = CBCentralManager(delegate: self, queue: nil, options: dic)
     }
     
@@ -203,6 +203,8 @@ public class BluetoothManager : NSObject, CBCentralManagerDelegate, CBPeripheral
             print("State : Unknown")
         case .unsupported:
             print("State : Unsupported")
+        default:
+            break
         }
         if let state = self.state {
             delegate?.didUpdateState?(state)

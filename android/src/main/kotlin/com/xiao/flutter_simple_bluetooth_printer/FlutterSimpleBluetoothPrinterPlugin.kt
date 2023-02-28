@@ -8,10 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
-import com.xiao.flutter_simple_bluetooth_printer.bluetooth.BLEManager
-import com.xiao.flutter_simple_bluetooth_printer.bluetooth.BTError
-import com.xiao.flutter_simple_bluetooth_printer.bluetooth.ClassicManager
-import com.xiao.flutter_simple_bluetooth_printer.bluetooth.toWrapper
+import com.xiao.flutter_simple_bluetooth_printer.bluetooth.*
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -92,6 +89,7 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
+            "getBluetoothState" -> getBluetoothState(result)
             "getBondedDevices" -> ensureBluetoothAvailable(isScan = false, result = result) {
                 bleManager.getBondedDevice(result.toWrapper)
             }
@@ -116,7 +114,7 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
             "writeData" -> ensureBluetoothAvailable(isScan = false, result = result) {
                 val bytes: ByteArray = call.argument("bytes")!!
                 val isBle: Boolean = call.argument("isBLE") ?: false
-                val characteristicUuid : String? = call.argument("characteristicUuid")
+                val characteristicUuid: String? = call.argument("characteristicUuid")
                 if (isBle) bleManager.writeRawData(bytes, result.toWrapper, characteristicUuid)
                 else classicManager.writeRawData(bytes, result.toWrapper)
             }
@@ -127,29 +125,47 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
     }
 
     fun interface PendingCallback {
-        fun onNext()
+        fun onNext(isSuccess: Boolean)
     }
 
     private var pendingCallbacks: PendingCallback? = null
     private var pendingResult: Result? = null
 
-    private fun ensureBluetoothAvailable(isScan: Boolean, result: Result, callback: PendingCallback) {
+    private fun getBluetoothState(result: Result) {
+        if (classicManager.bluetoothAdapter == null) {
+            result.success(BTState.Unsupported.value)
+            return
+        }
+        if (!classicManager.bluetoothAdapter!!.isEnabled) {
+            result.success(BTState.PoweredOff.value)
+            return
+        }
+        ensurePermissions(recommendedRuntimePermissions()) {
+            if (it) result.success(BTState.Available.value)
+            else result.success(BTState.Unauthorized.value)
+        }
+    }
+
+    private fun ensureBluetoothAvailable(isScan: Boolean, result: Result, callback: () -> Unit) {
         if (classicManager.bluetoothAdapter == null || !classicManager.bluetoothAdapter!!.isEnabled) {
             result.error(BTError.BluetoothNotAvailable.ordinal.toString(), null, null)
             return
         }
-        ensurePermissions(isScan, result, callback)
+        val permissions = if (isScan) recommendedScanRuntimePermissions() else recommendedConnectRuntimePermissions()
+        ensurePermissions(permissions) {
+            if (it) callback.invoke()
+            else {
+                result.error(BTError.PermissionNotGranted.ordinal.toString(), null, null)
+            }
+        }
     }
 
-    private fun ensurePermissions(isScan: Boolean, result: Result, callback: PendingCallback) {
-        val permissions = if(isScan) recommendedScanRuntimePermissions() else recommendedConnectRuntimePermissions()
-//            bleManager.rxBleClient.run { if (isScan) recommendedScanRuntimePermissions else recommendedConnectRuntimePermissions }
+    private fun ensurePermissions(permissions: Array<String>, callback: PendingCallback) {
         if (!hasPermissions(currentActivity, permissions)) {
             pendingCallbacks = callback
-            pendingResult = result
             ActivityCompat.requestPermissions(currentActivity!!, permissions, REQUEST_BT_PERMISSIONS)
         } else {
-            callback.onNext()
+            callback.onNext(true)
         }
     }
 
@@ -204,12 +220,11 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
         when (requestCode) {
             REQUEST_BT_PERMISSIONS -> {
                 if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                    pendingCallbacks?.onNext()
+                    pendingCallbacks?.onNext(true)
                 } else {
-                    pendingResult?.error(BTError.PermissionNotGranted.ordinal.toString(), null, null)
+                    pendingCallbacks?.onNext(false)
                 }
                 pendingCallbacks = null
-                pendingResult = null
                 return true
             }
         }

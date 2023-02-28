@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
@@ -25,6 +26,10 @@ abstract class FlutterSimpleBluetoothPrinterPlatform extends PlatformInterface {
   static set instance(FlutterSimpleBluetoothPrinterPlatform instance) {
     PlatformInterface.verifyToken(instance, _token);
     _instance = instance;
+  }
+
+  Future<BTState> getBluetoothState(){
+    throw UnimplementedError('getBluetoothState() has not been implemented.');
   }
 
   Future<List<BluetoothDevice>> getAndroidPairedDevices() {

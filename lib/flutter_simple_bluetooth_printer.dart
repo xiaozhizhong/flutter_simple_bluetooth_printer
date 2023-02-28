@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
 import 'flutter_simple_bluetooth_printer_platform_interface.dart';
@@ -15,6 +16,11 @@ class FlutterSimpleBluetoothPrinter {
   static final FlutterSimpleBluetoothPrinter _instance = FlutterSimpleBluetoothPrinter._();
 
   static FlutterSimpleBluetoothPrinter get instance => _instance;
+
+  /// Get the current bluetooth state
+  Future<BTState> getBluetoothState() async {
+    return await FlutterSimpleBluetoothPrinterPlatform.instance.getBluetoothState();
+  }
 
   /// Get paired devices for Android.
   /// For iOS, it will return an empty list.
