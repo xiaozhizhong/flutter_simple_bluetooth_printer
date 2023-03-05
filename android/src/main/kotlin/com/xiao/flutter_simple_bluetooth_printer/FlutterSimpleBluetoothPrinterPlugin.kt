@@ -103,7 +103,13 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
                 val address: String? = call.argument("address")
                 val isBle: Boolean = call.argument("isBLE") ?: false
                 val timeout: Int = call.argument("timeout")!!
-                if (isBle) bleManager.connect(macAddress = address, timeout = timeout, result = result.toWrapper)
+                val autoConnect: Boolean = call.argument("autoConnect") ?: false
+                if (isBle) bleManager.connect(
+                    macAddress = address,
+                    timeout = timeout,
+                    autoConnect = autoConnect,
+                    result = result.toWrapper
+                )
                 else classicManager.connect(address = address, result = result.toWrapper)
             }
             "disconnect" -> ensureBluetoothAvailable(isScan = false, result = result) {

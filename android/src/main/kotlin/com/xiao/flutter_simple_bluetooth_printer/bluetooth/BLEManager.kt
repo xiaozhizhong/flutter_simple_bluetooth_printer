@@ -2,6 +2,7 @@ package com.xiao.flutter_simple_bluetooth_printer.bluetooth
 
 import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
+import android.util.Log
 import com.polidea.rxandroidble3.RxBleClient
 import com.polidea.rxandroidble3.RxBleConnection
 import com.polidea.rxandroidble3.RxBleDevice
@@ -9,12 +10,15 @@ import com.polidea.rxandroidble3.Timeout
 import com.polidea.rxandroidble3.scan.IsConnectable
 import com.polidea.rxandroidble3.scan.ScanResult
 import com.polidea.rxandroidble3.scan.ScanSettings
-import io.reactivex.rxjava3.disposables.Disposable
-import io.reactivex.rxjava3.core.Single
-import java.util.concurrent.TimeUnit
+import com.polidea.rxandroidble3.ConnectionSetup
 import io.flutter.plugin.common.MethodChannel
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
+import io.reactivex.rxjava3.core.Single
+import io.reactivex.rxjava3.disposables.Disposable
+import java.lang.reflect.Method
 import java.util.*
+import java.util.concurrent.TimeUnit
+
 
 /**
  * @author Xiao
@@ -101,7 +105,7 @@ class BLEManager(context: Context) : IBluetoothManager() {
         methodChannel?.invokeMethod("scanResult", device.toMap())
     }
 
-    fun connect(macAddress: String?, timeout: Int, result: FlutterResultWrapper) {
+    fun connect(macAddress: String?, timeout: Int, autoConnect: Boolean, result: FlutterResultWrapper) {
         if (macAddress == null) {
             result.error(BTError.ErrorWithMessage.ordinal.toString(), "address is null", null)
             return
@@ -119,7 +123,11 @@ class BLEManager(context: Context) : IBluetoothManager() {
             result.error(BTError.ErrorWithMessage.ordinal.toString(), "can't not found device by $macAddress", null)
             return
         }
-        connectDisposable = device.establishConnection(false, Timeout(timeout.toLong(), TimeUnit.MILLISECONDS))
+        val operationTimeout = if (timeout > 0) Timeout(
+            timeout.toLong(),
+            TimeUnit.MILLISECONDS
+        ) else Timeout(ConnectionSetup.DEFAULT_OPERATION_TIMEOUT.toLong(), TimeUnit.SECONDS)
+        connectDisposable = device.establishConnection(autoConnect, operationTimeout)
             .subscribe(
                 { connection ->
                     lastConnectMac = macAddress

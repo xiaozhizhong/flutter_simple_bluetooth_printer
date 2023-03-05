@@ -53,10 +53,14 @@ class FlutterSimpleBluetoothPrinter {
 
   /// Connect to a Bluetooth device via address.
   /// [isBLE] Whether this is a BLE device. In iOS, this is ignored cause we only support BLE for iOS.
-  /// [timeout] The timeout for BLE connection. For non-BLE connection, this is ignored.
+  /// [timeout] Android Only currently. The timeout for BLE connection. For non-BLE connection, this is ignored. If null,
+  /// will use Android default timeout(30s). Use it carefully cause it may leave Android's BLE stack in an inconsistent state.
+  /// [androidAutoConnect] Android Only. Default to false.
   /// Throw [BTException] if failed.
-  Future<bool> connect({required String address, bool isBLE = true, Duration timeout = const Duration(seconds: 7)}) {
-    return FlutterSimpleBluetoothPrinterPlatform.instance.connect(address: address, isBLE: isBLE, timeout: timeout);
+  Future<bool> connect(
+      {required String address, bool isBLE = true, bool androidAutoConnect = false, Duration? timeout}) {
+    return FlutterSimpleBluetoothPrinterPlatform.instance
+        .connect(address: address, isBLE: isBLE, androidAutoConnect: androidAutoConnect, timeout: timeout);
   }
 
   /// Disconnect from a Bluetooth device.
