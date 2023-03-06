@@ -117,14 +117,14 @@ class ClassicManager(context: Context) : IBluetoothManager() {
      */
     @SuppressLint("MissingPermission")
     private inner class ConnectThread(
-        private val mmDevice: BluetoothDevice,
-        private val mmResult: FlutterResultWrapper,
+            private val mmDevice: BluetoothDevice,
+            private val mmResult: FlutterResultWrapper,
     ) : Thread() {
         private val mmSocket: BluetoothSocket?
         override fun run() {
             name = "ConnectThread"
             if (mmSocket == null) {
-                onConnectionFailed()
+                onConnectionFailed("Socket: create() failed")
                 return
             }
 
@@ -141,7 +141,7 @@ class ClassicManager(context: Context) : IBluetoothManager() {
                 } catch (e2: IOException) {
                     Log.e("ClassicManager", "unable to close() socket during connection failure")
                 }
-                onConnectionFailed()
+                onConnectionFailed(e.toString())
                 return
             }
 
@@ -153,8 +153,8 @@ class ClassicManager(context: Context) : IBluetoothManager() {
         }
 
         @Synchronized
-        private fun onConnectionFailed() {
-            mmResult.success(false)
+        private fun onConnectionFailed(error: String) {
+            mmResult.error(BTError.ErrorWithMessage.ordinal.toString(), error, null)
             synchronized(this@ClassicManager) { mConnectThread = null }
             doUpdateConnectionState(BTConnectState.Fail)
         }
@@ -250,7 +250,7 @@ class ClassicManager(context: Context) : IBluetoothManager() {
                 mmOutStream?.write(bytes)
             } catch (e: IOException) {
                 Log.e("ClassicManager", "Exception during write", e)
-                result.success(false)
+                result.error(BTError.ErrorWithMessage.ordinal.toString(), "Exception during write: $e", null)
                 return
             }
             result.success(true)
