@@ -28,7 +28,7 @@ abstract class FlutterSimpleBluetoothPrinterPlatform extends PlatformInterface {
     _instance = instance;
   }
 
-  Future<BTState> getBluetoothState(){
+  Future<BTState> getBluetoothState() {
     throw UnimplementedError('getBluetoothState() has not been implemented.');
   }
 
@@ -51,7 +51,10 @@ abstract class FlutterSimpleBluetoothPrinterPlatform extends PlatformInterface {
   }
 
   Future<bool> connect(
-      {required String address, bool isBLE = true, Duration timeout = const Duration(seconds: 7)}) async {
+      {required String address,
+      bool isBLE = true,
+      bool androidAutoConnect = false,
+      Duration? timeout}) async {
     throw UnimplementedError('connect() has not been implemented.');
   }
 
@@ -62,6 +65,10 @@ abstract class FlutterSimpleBluetoothPrinterPlatform extends PlatformInterface {
   Stream<BTConnectState> get connectState;
 
   Future<BTConnectState> currentConnectState() async {
+    throw UnimplementedError('currentConnectState() has not been implemented.');
+  }
+
+  Future<bool> isDeviceConnected(String address) async {
     throw UnimplementedError('currentConnectState() has not been implemented.');
   }
 

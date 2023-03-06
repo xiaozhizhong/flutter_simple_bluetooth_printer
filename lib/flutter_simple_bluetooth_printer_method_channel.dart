@@ -150,18 +150,25 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
 
   /// Connect to a Bluetooth device via address.
   /// [isBLE] Whether this is a BLE device. In iOS, this is ignored cause we only support BLE for iOS.
-  /// [timeout] The timeout for BLE connection. For non-BLE connection, this is ignored.
+  /// [timeout] Android Only currently. The timeout for BLE connection. For non-BLE connection, this is ignored. If null,
+  /// will use Android default timeout(30s). Use it carefully cause it may leave Android's BLE stack in an inconsistent state.
+  /// [androidAutoConnect] Android Only. Default to false.
   /// Throw [BTException] if failed.
   @override
   Future<bool> connect(
-      {required String address, bool isBLE = true, Duration timeout = const Duration(seconds: 7)}) async {
+      {required String address, bool isBLE = true, bool androidAutoConnect = false, Duration? timeout}) async {
     try {
       if (Platform.isIOS) {
         _isBLE = true;
       } else {
         _isBLE = isBLE;
       }
-      Map<String, dynamic> args = {"address": address, "isBLE": _isBLE, "timeout": timeout.inMilliseconds};
+      Map<String, dynamic> args = {
+        "address": address,
+        "isBLE": _isBLE,
+        "timeout": timeout == null ? -1 : timeout.inMilliseconds,
+        "autoConnect": androidAutoConnect
+      };
       return await methodChannel.invokeMethod("connect", args);
     } on PlatformException catch (e) {
       throw BTException.fromPlatform(e);
@@ -187,6 +194,12 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
       return Future.value(BTConnectState.disconnect);
     }
     return connectState.last;
+  }
+
+  @override
+  Future<bool> isDeviceConnected(String address) async {
+    final state = await methodChannel.invokeMethod("isDeviceConnected", {"address": address});
+    return state as bool? ?? false;
   }
 
   /// Write text to the connected device. Must connect to a device first.
