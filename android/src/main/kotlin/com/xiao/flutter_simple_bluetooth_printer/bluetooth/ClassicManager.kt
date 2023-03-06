@@ -50,11 +50,20 @@ class ClassicManager(context: Context) : IBluetoothManager() {
 
         val device = bluetoothAdapter!!.getRemoteDevice(address)
 
+        // Cancel any thread attempting to make a connection
+        if (mState == BTConnectState.Connecting) {
+            if (mConnectThread != null) {
+                mConnectThread!!.cancel()
+                mConnectThread = null
+            }
+        }
+
         // Cancel any thread currently running a connection
         if (mConnectedThread != null) {
             mConnectedThread!!.cancel()
             mConnectedThread = null
         }
+        Log.d("ClassicManager", "try connecting to $address")
 
         doUpdateConnectionState(BTConnectState.Connecting)
         // Start the thread to connect with the given device
@@ -71,8 +80,13 @@ class ClassicManager(context: Context) : IBluetoothManager() {
             mConnectThread!!.cancel()
             mConnectThread = null
         }
+        if (mConnectedThread != null) {
+            mConnectedThread!!.cancel()
+            mConnectedThread = null
+        }
         doUpdateConnectionState(BTConnectState.Disconnect)
         result.success(true)
+        Log.d("ClassicManager", "disconnect")
     }
 
     /**
@@ -114,6 +128,9 @@ class ClassicManager(context: Context) : IBluetoothManager() {
                 return
             }
 
+            // Always cancel discovery because it will slow down a connection
+            bluetoothAdapter?.cancelDiscovery()
+
             // Make a connection to the BluetoothSocket
             try {
                 mmSocket.connect()
@@ -147,16 +164,28 @@ class ClassicManager(context: Context) : IBluetoothManager() {
          * Start the ConnectedThread to begin managing a Bluetooth connection
          *
          * @param socket The BluetoothSocket on which the connection was made
-         * @param device The BluetoothDevice that has been connected
          */
         @Synchronized
         private fun onConnected(socket: BluetoothSocket) {
-            mmResult.success(true)
+            // Cancel the thread that completed the connection
+            if (mConnectThread != null) {
+                mConnectThread!!.cancel()
+                mConnectThread = null
+            }
+
+            // Cancel any thread currently running a connection
+            if (mConnectedThread != null) {
+                mConnectedThread!!.cancel()
+                mConnectedThread = null
+            }
             doUpdateConnectionState(BTConnectState.Connected)
+
+            Log.d("ClassicManager", "connected to ${mmDevice.address}")
 
             // Start the thread to manage the connection and perform transmissions
             mConnectedThread = ConnectedThread(socket)
             mConnectedThread!!.start()
+            mmResult.success(true)
         }
 
         fun cancel() {
@@ -205,9 +234,10 @@ class ClassicManager(context: Context) : IBluetoothManager() {
         }
 
         /**
-         * Indicate that the connection was lost and notify the UI Activity.
+         * Indicate that the connection was lost
          */
         private fun onConnectionLost() {
+            Log.d("ClassicManager", "connection lost")
             doUpdateConnectionState(BTConnectState.Disconnect)
         }
 
