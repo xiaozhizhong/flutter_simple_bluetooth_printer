@@ -4,9 +4,11 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_simple_bluetooth_printer/models/BTError.dart';
+import 'package:flutter_simple_bluetooth_printer/flutter_simple_bluetooth_printer.dart';
+import 'package:flutter_simple_bluetooth_printer/models/bt_error.dart';
 import 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
+import 'package:flutter_simple_bluetooth_printer/models/connection_config.dart';
 import 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
 import 'package:rxdart/rxdart.dart';
 import 'flutter_simple_bluetooth_printer_platform_interface.dart';
@@ -149,26 +151,16 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
   }
 
   /// Connect to a Bluetooth device via address.
-  /// [isBLE] Whether this is a BLE device. In iOS, this is ignored cause we only support BLE for iOS.
-  /// [timeout] Android Only currently. The timeout for BLE connection. For non-BLE connection, this is ignored. If null,
-  /// will use Android default timeout(30s). Use it carefully cause it may leave Android's BLE stack in an inconsistent state.
-  /// [androidAutoConnect] Android Only. Default to false.
   /// Throw [BTException] if failed.
   @override
-  Future<bool> connect(
-      {required String address, bool isBLE = true, bool androidAutoConnect = false, Duration? timeout}) async {
+  Future<bool> connect({required String address, required ConnectionConfig config}) async {
     try {
       if (Platform.isIOS) {
-        _isBLE = true;
-      } else {
-        _isBLE = isBLE;
+        // For iOS, force using BLE
+        config = const LEBluetoothConnectionConfig();
       }
-      Map<String, dynamic> args = {
-        "address": address,
-        "isBLE": _isBLE,
-        "timeout": timeout == null ? -1 : timeout.inMilliseconds,
-        "autoConnect": androidAutoConnect
-      };
+      Map<String, dynamic> args = config.toMap();
+      args["address"] = address;
       return await methodChannel.invokeMethod("connect", args);
     } on PlatformException catch (e) {
       throw BTException.fromPlatform(e);
@@ -177,29 +169,39 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
 
   /// Disconnect from a Bluetooth device.
   /// Throw [BTException] if failed.
+  /// [delay] is the time to wait before disconnecting.
   @override
-  Future<bool> disconnect() async {
+  Future<bool> disconnect({required Duration delay}) async {
     try {
-      Map<String, dynamic> args = {"isBLE": _isBLE};
-      return await methodChannel.invokeMethod("disconnect", args);
+      Map<String, dynamic> args = {"isBLE": _isBLE, "delay": delay.inMilliseconds};
+      return await methodChannel.invokeMethod("disconnect", args).onError((error, stackTrace) => null);
     } on PlatformException catch (e) {
       throw BTException.fromPlatform(e);
     }
   }
 
-  /// Get the current Connect State.
   @override
-  Future<BTConnectState> currentConnectState() async {
-    if (await connectState.isEmpty) {
-      return Future.value(BTConnectState.disconnect);
-    }
-    return connectState.last;
+  Future<bool> setupNotification({required String characteristicUuid}) async {
+    final state = await methodChannel
+        .invokeMethod("setupNotification", {"characteristicUuid": characteristicUuid}).recoverBTException();
+    return state as bool? ?? false;
   }
 
   @override
-  Future<bool> isDeviceConnected(String address) async {
-    final state = await methodChannel.invokeMethod("isDeviceConnected", {"address": address});
+  Future<bool> setupIndication({required String characteristicUuid}) async {
+    final state = await methodChannel
+        .invokeMethod("setupIndication", {"characteristicUuid": characteristicUuid}).recoverBTException();
     return state as bool? ?? false;
+  }
+
+  @override
+  Future<int> requestMtu(int mtu) async {
+    assert(
+      mtu >= FlutterSimpleBluetoothPrinter.minAndroidMTU && mtu <= FlutterSimpleBluetoothPrinter.maxAndroidMTU,
+      "MTU must be between ${FlutterSimpleBluetoothPrinter.minAndroidMTU} and ${FlutterSimpleBluetoothPrinter.maxAndroidMTU}",
+    );
+    final newMtu = await methodChannel.invokeMethod("requestMtu", {"mtu": mtu}).recoverBTException();
+    return newMtu as int? ?? 0;
   }
 
   /// Write text to the connected device. Must connect to a device first.
@@ -216,6 +218,16 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
     try {
       Map<String, dynamic> args = {"bytes": bytes, "isBLE": _isBLE, "characteristicUuid": characteristicUuid};
       return await methodChannel.invokeMethod("writeData", args);
+    } on PlatformException catch (e) {
+      throw BTException.fromPlatform(e);
+    }
+  }
+}
+
+extension MethodChannelExt<T> on Future<T?> {
+  Future<T?> recoverBTException() async {
+    try {
+      return await this;
     } on PlatformException catch (e) {
       throw BTException.fromPlatform(e);
     }

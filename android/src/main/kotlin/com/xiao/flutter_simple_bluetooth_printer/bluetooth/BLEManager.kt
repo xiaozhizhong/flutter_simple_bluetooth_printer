@@ -1,24 +1,18 @@
 package com.xiao.flutter_simple_bluetooth_printer.bluetooth
 
+import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
-import com.jakewharton.rx3.ReplayingShare
-import com.polidea.rxandroidble3.RxBleClient
-import com.polidea.rxandroidble3.RxBleConnection
-import com.polidea.rxandroidble3.RxBleDevice
-import com.polidea.rxandroidble3.Timeout
+import com.polidea.rxandroidble3.*
 import com.polidea.rxandroidble3.scan.IsConnectable
 import com.polidea.rxandroidble3.scan.ScanResult
 import com.polidea.rxandroidble3.scan.ScanSettings
-import com.polidea.rxandroidble3.ConnectionSetup
-import com.polidea.rxandroidble3.scan.ScanFilter
 import io.flutter.plugin.common.MethodChannel
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Single
 import io.reactivex.rxjava3.disposables.Disposable
 import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.disposables.CompositeDisposable
-import io.reactivex.rxjava3.subjects.PublishSubject
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -38,13 +32,12 @@ class BLEManager(context: Context) : IBluetoothManager() {
 
     private var scanDisposable: Disposable? = null
 
-    private val disconnectTriggerSubject = PublishSubject.create<Unit>()
-    private var connectionObservable: Observable<RxBleConnection>? = null
-    private val connectionDisposables = CompositeDisposable()
-    private var stateDisposable: Disposable? = null
-
     private val nearbyDevices: MutableList<BluetoothDevice> = mutableListOf()
     private var methodChannel: MethodChannel? = null
+
+    private var connectionData: BLEConnectionData? = null
+
+    private var lastConnectState: BTConnectState? = null
 
     fun bindMethodChannel(channel: MethodChannel?) {
         methodChannel = channel
@@ -70,7 +63,6 @@ class BLEManager(context: Context) : IBluetoothManager() {
                 .build()
         scanDisposable = rxBleClient.scanBleDevices(scanSettings)
                 .observeOn(AndroidSchedulers.mainThread())
-                .doFinally { scanDisposable = null }
                 .subscribe({ scanResult ->
                     result.success(null)
                     addNearbyDevice(scanResult)
@@ -97,7 +89,7 @@ class BLEManager(context: Context) : IBluetoothManager() {
         methodChannel?.invokeMethod("scanResult", device.toMap())
     }
 
-    fun connect(macAddress: String?, timeout: Int, autoConnect: Boolean, result: FlutterResultWrapper) {
+    fun connect(macAddress: String?, config: LEConnectionConfig, result: FlutterResultWrapper) {
         if (macAddress == null) {
             result.error(BTError.ErrorWithMessage.ordinal.toString(), "address is null", null)
             return
@@ -107,78 +99,145 @@ class BLEManager(context: Context) : IBluetoothManager() {
             result.error(BTError.ErrorWithMessage.ordinal.toString(), "can't not found device by $macAddress", null)
             return
         }
-        if (device.isConnected) {
-            result.success(true)// Already connected
-            return
+        if (connectionData != null) {
+            if (connectionData!!.macAddress == macAddress) {
+                // Already connected
+                connectionData!!.isActive = true
+                result.success(true)
+                return
+            }
+            // Disconnect the previous connection
+            removeConnectionData()
         }
+        connectionData = BLEConnectionData(macAddress)
+
         observeConnectionState(device)
 
-        val operationTimeout = if (timeout > 0) Timeout(timeout.toLong(), TimeUnit.MILLISECONDS) else Timeout(ConnectionSetup.DEFAULT_OPERATION_TIMEOUT.toLong(), TimeUnit.SECONDS)
-        prepareConnectionObservable(device, autoConnect, operationTimeout)
+        val connectionObservable = if (config.timeout > 0) {
+            device.establishConnection(config.autoConnect, Timeout(config.timeout, TimeUnit.MILLISECONDS))
+        } else {
+            device.establishConnection(config.autoConnect)
+        }
+        connectionObservable
+                .requestConnectionPriorityIfNeeded(config.priority)
                 .observeOn(AndroidSchedulers.mainThread())
-                .doOnDispose { connectionObservable = null }
-                .subscribe({ result.success(true) }, { throwable ->
+                .subscribe({
+                    connectionData?.setConnection(it)
+                    connectionData?.isActive = true
+                    result.success(true)
+                }, { throwable ->
+                    removeConnectionData()
                     val error = throwable.toFlutterPlatformError
                     result.error(error.code, error.message, error.details)
                 })
-                .let { connectionDisposables.add(it) }
-    }
-
-    private fun rescanAndConnect(macAddress: String) {
-        val scanSettings = ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                .setCallbackType(ScanSettings.CALLBACK_TYPE_FIRST_MATCH)
-                .build()
-        val filter = ScanFilter.Builder()
-                .setDeviceAddress(macAddress)
-                .build()
-        rxBleClient.scanBleDevices(scanSettings, filter)
-                .take(5000, TimeUnit.MILLISECONDS)
-                .doFinally {  }
-
-    }
-
-    private fun prepareConnectionObservable(device: RxBleDevice, autoConnect: Boolean, timeout: Timeout): Observable<RxBleConnection> {
-        connectionObservable = device
-                .establishConnection(autoConnect, timeout)
-                .takeUntil(disconnectTriggerSubject)
-                .compose(ReplayingShare.instance())
-        return connectionObservable!!
+                .let { connectionData?.addDisposable(it) }
     }
 
     private fun observeConnectionState(device: RxBleDevice) {
-        stateDisposable = device.observeConnectionStateChanges()
+        device.observeConnectionStateChanges()
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe { connectionState ->
                     doUpdateConnectionState(connectionState.toState)
                     if (connectionState == RxBleConnection.RxBleConnectionState.DISCONNECTED) {
-                        stateDisposable.tryDispose()
+                        removeConnectionData()
                     }
-                }
+                }.let { connectionData?.addDisposable(it) }
     }
 
-    fun disconnect(result: FlutterResultWrapper) {
-        triggerDisconnect()
-        connectionDisposables.clear()
+    private fun removeConnectionData() {
+        connectionData?.dispose()
+        connectionData = null
+    }
+
+    private fun Observable<RxBleConnection>.requestConnectionPriorityIfNeeded(priority: Int): Observable<RxBleConnection> {
+        return this.switchMap { connection ->
+            if (priority != connectionData?.connectionPriority)
+                connection.requestConnectionPriority(priority, 100L, TimeUnit.MILLISECONDS)
+                        .doOnComplete { connectionData?.connectionPriority = priority }
+                        .andThen(Observable.just(connection))
+            else Observable.just(connection)
+        }
+    }
+
+    fun setupNotification(result: FlutterResultWrapper, characteristicUuid: String) {
+        val connection = getConnectionOrNull(result) ?: return
+        connection.setupNotification(UUID.fromString(characteristicUuid))
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(
+                        { result.success(true) },
+                        { throwable ->
+                            val error = throwable.toFlutterPlatformError
+                            result.error(error.code, error.message, error.details)
+                        })
+                .let { connectionData?.addDisposable(it) }
+    }
+
+    fun setupIndication(result: FlutterResultWrapper, characteristicUuid: String) {
+        val connection = getConnectionOrNull(result) ?: return
+        connection.setupIndication(UUID.fromString(characteristicUuid))
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(
+                        { result.success(true) },
+                        { throwable ->
+                            val error = throwable.toFlutterPlatformError
+                            result.error(error.code, error.message, error.details)
+                        })
+                .let { connectionData?.addDisposable(it) }
+    }
+
+    fun requestMtu(result: FlutterResultWrapper, mtu: Int) {
+        val connection = getConnectionOrNull(result) ?: return
+        connection.requestMtu(mtu)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(
+                        { result.success(it) },
+                        { throwable ->
+                            val error = throwable.toFlutterPlatformError
+                            result.error(error.code, error.message, error.details)
+                        })
+                .let { connectionData?.addDisposable(it) }
+    }
+//
+//    private fun rescanAndConnect(macAddress: String) {
+//        val scanSettings = ScanSettings.Builder()
+//                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+//                .setCallbackType(ScanSettings.CALLBACK_TYPE_FIRST_MATCH)
+//                .build()
+//        val filter = ScanFilter.Builder()
+//                .setDeviceAddress(macAddress)
+//                .build()
+//        rxBleClient.scanBleDevices(scanSettings, filter)
+//                .take(5000, TimeUnit.MILLISECONDS)
+//                .doFinally { }
+//
+//    }
+
+    fun disconnect(result: FlutterResultWrapper, delay: Int) {
+        connectionData?.isActive = false
+        Observable.timer(delay.toLong(), TimeUnit.MILLISECONDS)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe {
+                    if (connectionData?.isActive == false) {
+                        removeConnectionData()
+                    }
+                }
         result.success(true)
     }
 
-    private fun triggerDisconnect() = disconnectTriggerSubject.onNext(Unit)
-
-    fun writeRawData(data: ByteArray, result: FlutterResultWrapper, characteristicUuid: String?) {
-        val connection = try {
-            connectionObservable?.blockingFirst()
-        } catch (e: NoSuchElementException) {
-            null
-        }
+    private fun getConnectionOrNull(result: FlutterResultWrapper): RxBleConnection? {
+        val connection = connectionData?.getConnection()
         if (connection == null) {
             result.error(BTError.ErrorWithMessage.ordinal.toString(), "connection is null", null)
-            return
         }
+        return connection
+    }
+
+    fun writeRawData(data: ByteArray, result: FlutterResultWrapper, characteristicUuid: String?) {
+        val connection = getConnectionOrNull(result) ?: return
         val characteristicUUID = if (characteristicUuid.isNullOrEmpty()) {
-            getWritableCharacteristic(connection).toObservable().take(1).map { it.uuid }
+            getWritableCharacteristic(connection).toObservable().take(1)
         } else {
-            Observable.just(UUID.fromString(characteristicUuid))
+            connection.getCharacteristic(UUID.fromString(characteristicUuid)).toObservable()
         }
         val longWrite = data.size > connection.maxWriteSize
         characteristicUUID
@@ -190,21 +249,18 @@ class BLEManager(context: Context) : IBluetoothManager() {
                             val error = throwable.toFlutterPlatformError
                             result.error(error.code, error.message, error.details)
                         })
-                .let { connectionDisposables.add(it) }
+                .let { connectionData?.addDisposable(it) }
     }
 
-    private fun RxBleConnection.performWrite(data: ByteArray, characteristicUuid: UUID) = writeCharacteristic(characteristicUuid, data).toObservable()
+    private fun RxBleConnection.performWrite(data: ByteArray, characteristic: BluetoothGattCharacteristic) = writeCharacteristic(characteristic, data).toObservable()
 
-    private fun RxBleConnection.performLongWrite(data: ByteArray, characteristicUuid: UUID) = createNewLongWriteBuilder().setBytes(data).setCharacteristicUuid(characteristicUuid).build()
+    private fun RxBleConnection.performLongWrite(data: ByteArray, characteristic: BluetoothGattCharacteristic) = createNewLongWriteBuilder().setBytes(data).setCharacteristic(characteristic).build()
 
     private fun getWritableCharacteristic(connection: RxBleConnection): Single<BluetoothGattCharacteristic> {
         return connection.discoverServices().flatMap { services ->
-            var characteristic = services.bluetoothGattServices.flatMap { it.characteristics.filter { char -> char.isWriteable } }.minByOrNull { it.uuid }
-            if (characteristic == null) {
-                characteristic = services.bluetoothGattServices.flatMap { it.characteristics }.firstNotNullOfOrNull {
-                    if (it.getDescriptor(UUID.fromString(CLIENT_CHARACTERISTIC_CONFIG)) != null) it else null
-                }
-            }
+            val characteristic = services.bluetoothGattServices
+                    .flatMap { it.characteristics.filter { char -> char.isWriteable } }
+                    .minByOrNull { it.uuid }
             if (characteristic == null) {
                 Single.error(BTError.ErrorWithMessage.toError("can't not found writable characteristic"))
             } else {
@@ -226,14 +282,14 @@ class BLEManager(context: Context) : IBluetoothManager() {
 
     private fun doUpdateConnectionState(state: BTConnectState?) {
         state ?: return
+        if (lastConnectState == state) return
+        lastConnectState = state
         updateConnectionState(state)
     }
 
 }
 
 private fun Disposable?.tryDispose() = this?.takeIf { !it.isDisposed }?.dispose()
-
-private val RxBleDevice.isConnected: Boolean get() = connectionState == RxBleConnection.RxBleConnectionState.CONNECTED
 
 private val RxBleConnection.maxWriteSize: Int get() = mtu - 3
 
@@ -245,3 +301,27 @@ private val BluetoothGattCharacteristic.isReadable: Boolean
 
 private val BluetoothGattCharacteristic.isWriteable: Boolean
     get() = properties == BluetoothGattCharacteristic.PROPERTY_WRITE || properties == BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE || properties == BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE
+
+
+class BLEConnectionData(val macAddress: String) {
+    private var connection: RxBleConnection? = null
+    private val connectionDisposables = CompositeDisposable()
+    var isActive = false
+    var connectionPriority = BluetoothGatt.CONNECTION_PRIORITY_BALANCED
+
+    fun setConnection(connection: RxBleConnection) {
+        this.connection = connection
+    }
+
+    fun getConnection(): RxBleConnection? {
+        return connection
+    }
+
+    fun addDisposable(disposable: Disposable) {
+        connectionDisposables.add(disposable)
+    }
+
+    fun dispose() {
+        connectionDisposables.clear()
+    }
+}

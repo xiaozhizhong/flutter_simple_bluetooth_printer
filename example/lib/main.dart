@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_simple_bluetooth_printer/flutter_simple_bluetooth_printer.dart';
 import 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
+import 'package:flutter_simple_bluetooth_printer/models/connection_config.dart';
 
 void main() {
   runApp(const MyApp());
@@ -119,8 +120,9 @@ class _MyAppState extends State<MyApp> {
     try {
       await _connectDevice();
       if (!_isConnected) return;
-      final isSuccess = await bluetoothManager.writeText(codes,
-          // characteristicUuid: "FF00"
+      final isSuccess = await bluetoothManager.writeText(
+        codes,
+        // characteristicUuid: "FF00"
       );
       if (isSuccess) {
         await bluetoothManager.disconnect();
@@ -133,7 +135,10 @@ class _MyAppState extends State<MyApp> {
   _connectDevice() async {
     if (selectedPrinter == null) return;
     try {
-      _isConnected = await bluetoothManager.connect(address: selectedPrinter!.address, isBLE: selectedPrinter!.isLE);
+      _isConnected = await bluetoothManager.connect(
+        address: selectedPrinter!.address,
+        config: selectedPrinter!.isLE ? const LEBluetoothConnectionConfig() : const ClassicBluetoothConnectionConfig(),
+      );
     } on BTException catch (e) {
       print(e);
     }

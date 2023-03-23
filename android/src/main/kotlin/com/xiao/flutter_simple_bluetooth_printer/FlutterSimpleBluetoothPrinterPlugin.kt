@@ -21,7 +21,7 @@ import io.flutter.plugin.common.PluginRegistry
 
 /** FlutterSimpleBluetoothPrinterPlugin */
 class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, PluginRegistry.RequestPermissionsResultListener,
-    ActivityAware {
+        ActivityAware {
 
     companion object {
         const val URL_METHOD_CHANNEL = "flutter_simple_bluetooth_printer/method"
@@ -101,21 +101,31 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
             }
             "connect" -> ensureBluetoothAvailable(isScan = false, result = result) {
                 val address: String? = call.argument("address")
-                val isBle: Boolean = call.argument("isBLE") ?: false
-                val timeout: Int = call.argument("timeout")!!
-                val autoConnect: Boolean = call.argument("autoConnect") ?: false
-                if (isBle) bleManager.connect(
-                    macAddress = address,
-                    timeout = timeout,
-                    autoConnect = autoConnect,
-                    result = result.toWrapper
+                val config = ConnectionConfig.fromCall(call)
+                if (config is LEConnectionConfig) bleManager.connect(
+                        macAddress = address,
+                        config = config,
+                        result = result.toWrapper
                 )
                 else classicManager.connect(address = address, result = result.toWrapper)
             }
             "disconnect" -> ensureBluetoothAvailable(isScan = false, result = result) {
                 val isBle: Boolean = call.argument("isBLE") ?: false
-                if (isBle) bleManager.disconnect(result.toWrapper)
+                val delay: Int = call.argument("delay") ?: 0
+                if (isBle) bleManager.disconnect(result.toWrapper, delay)
                 else classicManager.disconnect(result.toWrapper)
+            }
+            "setupNotification" -> ensureBluetoothAvailable(isScan = false, result = result) {
+                val characteristicUuid: String = call.argument("characteristicUuid")!!
+                bleManager.setupNotification(result.toWrapper, characteristicUuid)
+            }
+            "setupIndication" -> ensureBluetoothAvailable(isScan = false, result = result) {
+                val characteristicUuid: String = call.argument("characteristicUuid")!!
+                bleManager.setupIndication(result.toWrapper, characteristicUuid)
+            }
+            "requestMtu" -> ensureBluetoothAvailable(isScan = false, result = result) {
+                val mtu: Int = call.argument("mtu")!!
+                bleManager.requestMtu(result.toWrapper, mtu)
             }
             "writeData" -> ensureBluetoothAvailable(isScan = false, result = result) {
                 val bytes: ByteArray = call.argument("bytes")!!
@@ -186,8 +196,8 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
         if (sdkVersion < 31 /* pre Android 10 */) {
             // Since API 23 (Android M) ACCESS_COARSE_LOCATION or ACCESS_FINE_LOCATION allows for getting scan results
             return arrayOf(
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION
             )
         }
 //        if (sdkVersion < 31 /* pre Android 12 */) {
@@ -196,9 +206,9 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
 //        }
         // Since API 31 (Android 12) only BLUETOOTH_SCAN allows for getting scan results
         return arrayOf(
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION
         )
     }
 

@@ -2,16 +2,22 @@ import 'dart:typed_data';
 
 import 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
+import 'package:flutter_simple_bluetooth_printer/models/connection_config.dart';
 import 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
 import 'flutter_simple_bluetooth_printer_platform_interface.dart';
 
-export 'package:flutter_simple_bluetooth_printer/models/BTError.dart';
+export 'package:flutter_simple_bluetooth_printer/models/bt_error.dart';
+export 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
 export 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
 export 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
+export 'package:flutter_simple_bluetooth_printer/models/connection_config.dart';
 
 /// By Xiao 2023/1
 class FlutterSimpleBluetoothPrinter {
   FlutterSimpleBluetoothPrinter._();
+
+  static const int minAndroidMTU = 23;
+  static const int maxAndroidMTU = 515;
 
   static final FlutterSimpleBluetoothPrinter _instance = FlutterSimpleBluetoothPrinter._();
 
@@ -52,30 +58,58 @@ class FlutterSimpleBluetoothPrinter {
   }
 
   /// Connect to a Bluetooth device via address.
-  /// [isBLE] Whether this is a BLE device. In iOS, this is ignored cause we only support BLE for iOS.
-  /// [timeout] Android Only currently. The timeout for BLE connection. For non-BLE connection, this is ignored. If null,
-  /// will use Android default timeout(30s). Use it carefully cause it may leave Android's BLE stack in an inconsistent state.
-  /// [androidAutoConnect] Android Only. Default to false.
+  /// [config] The connection config. Default to [LEBluetoothConnectionConfig].
   /// Throw [BTException] if failed.
-  Future<bool> connect(
-      {required String address, bool isBLE = true, bool androidAutoConnect = false, Duration? timeout}) {
-    return FlutterSimpleBluetoothPrinterPlatform.instance
-        .connect(address: address, isBLE: isBLE, androidAutoConnect: androidAutoConnect, timeout: timeout);
+  Future<bool> connect({required String address, ConnectionConfig config = const LEBluetoothConnectionConfig()}) {
+    return FlutterSimpleBluetoothPrinterPlatform.instance.connect(address: address, config: config);
   }
 
   /// Disconnect from a Bluetooth device.
   /// Return bool as result.
   /// Throw [BTException] when error.
-  Future<bool> disconnect() {
-    return FlutterSimpleBluetoothPrinterPlatform.instance.disconnect();
+  /// [delay] The delay time before disconnect, default to 0.
+  Future<bool> disconnect({Duration delay = Duration.zero}) {
+    return FlutterSimpleBluetoothPrinterPlatform.instance.disconnect(delay: delay);
+  }
+
+  /// Setup notification for a characteristic, LE only.
+  /// * Must connect to a device first.
+  /// Return bool as result.
+  /// Throw [BTException] when error.
+  Future<bool> setupNotification({required String characteristicUuid}) {
+    return FlutterSimpleBluetoothPrinterPlatform.instance.setupNotification(characteristicUuid: characteristicUuid);
+  }
+
+  /// Setup indication for a characteristic, LE only.
+  /// * Must connect to a device first.
+  /// Return bool as result.
+  /// Throw [BTException] when error.
+  Future<bool> setupIndication({required String characteristicUuid}) {
+    return FlutterSimpleBluetoothPrinterPlatform.instance.setupIndication(characteristicUuid: characteristicUuid);
+  }
+
+  /// Request MTU, LE only. The mtu should be between 23 and 515.
+  /// * Must connect to a device first.
+  /// Return the mtu as result.
+  /// Throw [BTException] when error.
+  Future<int> requestMtu({required int mtu}) {
+    return FlutterSimpleBluetoothPrinterPlatform.instance.requestMtu(mtu);
   }
 
   /// Get the connection state stream.
   Stream<BTConnectState> get connectState => FlutterSimpleBluetoothPrinterPlatform.instance.connectState;
 
   /// Get the current Connect State.
-  Future<BTConnectState> currentConnectState() {
-    return FlutterSimpleBluetoothPrinterPlatform.instance.currentConnectState();
+  Future<BTConnectState> currentConnectState() async {
+    if (await connectState.isEmpty) {
+      return Future.value(BTConnectState.disconnect);
+    }
+    return connectState.last;
+  }
+
+  /// Is connected to a device.
+  Future<bool> isConnected() {
+    return currentConnectState().then((value) => value == BTConnectState.connected);
   }
 
   /// Write text to the connected device.

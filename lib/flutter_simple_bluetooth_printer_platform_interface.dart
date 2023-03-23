@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
+import 'package:flutter_simple_bluetooth_printer/models/connection_config.dart';
 import 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'flutter_simple_bluetooth_printer_method_channel.dart';
@@ -50,27 +51,27 @@ abstract class FlutterSimpleBluetoothPrinterPlatform extends PlatformInterface {
     throw UnimplementedError('scan() has not been implemented.');
   }
 
-  Future<bool> connect(
-      {required String address,
-      bool isBLE = true,
-      bool androidAutoConnect = false,
-      Duration? timeout}) async {
+  Future<bool> connect({required String address, required ConnectionConfig config}) async {
     throw UnimplementedError('connect() has not been implemented.');
   }
 
-  Future<bool> disconnect() async {
+  Future<bool> disconnect({required Duration delay}) async {
     throw UnimplementedError('disconnect() has not been implemented.');
   }
 
+  Future<bool> setupNotification({required String characteristicUuid}) async {
+    throw UnimplementedError('setupNotification() has not been implemented.');
+  }
+
+  Future<bool> setupIndication({required String characteristicUuid}) async {
+    throw UnimplementedError('setupIndication() has not been implemented.');
+  }
+
+  Future<int> requestMtu(int mtu) async {
+    throw UnimplementedError('requestMtu() has not been implemented.');
+  }
+
   Stream<BTConnectState> get connectState;
-
-  Future<BTConnectState> currentConnectState() async {
-    throw UnimplementedError('currentConnectState() has not been implemented.');
-  }
-
-  Future<bool> isDeviceConnected(String address) async {
-    throw UnimplementedError('currentConnectState() has not been implemented.');
-  }
 
   Future<bool> writeText(String text, {String? characteristicUuid}) async {
     throw UnimplementedError('writeText() has not been implemented.');
