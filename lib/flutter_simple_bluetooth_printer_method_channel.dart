@@ -53,7 +53,7 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
   @override
   Stream<BTConnectState> get connectState => _connectStateStreamController.stream;
 
-  bool _isBLE = false;
+  bool _connectionIsLE = false;
 
   @override
   Future<BTState> getBluetoothState() async {
@@ -159,6 +159,7 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
         // For iOS, force using BLE
         config = const LEBluetoothConnectionConfig();
       }
+      _connectionIsLE = config is LEBluetoothConnectionConfig;
       Map<String, dynamic> args = config.toMap();
       args["address"] = address;
       return await methodChannel.invokeMethod("connect", args);
@@ -173,7 +174,7 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
   @override
   Future<bool> disconnect({required Duration delay}) async {
     try {
-      Map<String, dynamic> args = {"isBLE": _isBLE, "delay": delay.inMilliseconds};
+      Map<String, dynamic> args = {"isBLE": _connectionIsLE, "delay": delay.inMilliseconds};
       return await methodChannel.invokeMethod("disconnect", args).onError((error, stackTrace) => null);
     } on PlatformException catch (e) {
       throw BTException.fromPlatform(e);
@@ -223,7 +224,7 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
   @override
   Future<bool> writeRawData(Uint8List bytes, {String? characteristicUuid}) async {
     try {
-      Map<String, dynamic> args = {"bytes": bytes, "isBLE": _isBLE, "characteristicUuid": characteristicUuid};
+      Map<String, dynamic> args = {"bytes": bytes, "isBLE": _connectionIsLE, "characteristicUuid": characteristicUuid};
       return await methodChannel.invokeMethod("writeData", args);
     } on PlatformException catch (e) {
       throw BTException.fromPlatform(e);
