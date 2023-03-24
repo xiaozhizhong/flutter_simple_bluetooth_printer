@@ -99,17 +99,13 @@ class FlutterSimpleBluetoothPrinter {
   /// Get the connection state stream.
   Stream<BTConnectState> get connectState => FlutterSimpleBluetoothPrinterPlatform.instance.connectState;
 
-  /// Get the current Connect State.
-  Future<BTConnectState> currentConnectState() async {
-    if (await connectState.isEmpty) {
-      return Future.value(BTConnectState.disconnect);
-    }
-    return connectState.last;
-  }
-
-  /// Is connected to a device.
-  Future<bool> isConnected() {
-    return currentConnectState().then((value) => value == BTConnectState.connected);
+  /// Check is connected to a device.
+  /// If the previous connection is waiting for disconnect(See the delay of [disconnect]), this will stop the disconnect and return true.
+  /// [isLE] If true, will check the LE connection state, otherwise will check the classic connection state. For iOS,
+  /// will ignore this parameter cause we only support LE on iOS.
+  /// Throw [BTException] when error.
+  Future<bool> ensureConnected({required String address, bool isLE = true}) {
+    return FlutterSimpleBluetoothPrinterPlatform.instance.ensureConnected(address: address, isLE: isLE);
   }
 
   /// Write text to the connected device.

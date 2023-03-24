@@ -204,6 +204,13 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
     return newMtu as int? ?? 0;
   }
 
+  @override
+  Future<bool> ensureConnected({required String address, required bool isLE}) async {
+    final connected =
+        await methodChannel.invokeMethod("ensureConnected", {"address": address, "isLE": isLE}).recoverBTException();
+    return connected as bool? ?? false;
+  }
+
   /// Write text to the connected device. Must connect to a device first.
   /// Throw [BTException] if failed.
   @override

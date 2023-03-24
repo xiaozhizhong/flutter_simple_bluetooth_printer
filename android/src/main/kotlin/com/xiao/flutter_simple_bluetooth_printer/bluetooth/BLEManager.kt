@@ -43,6 +43,20 @@ class BLEManager(context: Context) : IBluetoothManager() {
         methodChannel = channel
     }
 
+    private fun isConnected() = connectionData?.getConnection() != null
+
+    private fun isConnected(macAddress: String) = isConnected() && connectionData?.macAddress == macAddress
+
+    fun ensureConnected(address: String, result: FlutterResultWrapper) {
+        if (isConnected(address)) {
+            // Already connected
+            connectionData?.isActive = true
+            result.success(true)
+            return
+        }
+        result.success(false)
+    }
+
     fun getBondedDevice(result: FlutterResultWrapper) {
         try {
             val devices = rxBleClient.bondedDevices.map { BluetoothDevice.fromRxBleDevices(it).toMap() }
@@ -99,8 +113,8 @@ class BLEManager(context: Context) : IBluetoothManager() {
             result.error(BTError.ErrorWithMessage.ordinal.toString(), "can't not found device by $macAddress", null)
             return
         }
-        if (connectionData != null) {
-            if (connectionData!!.macAddress == macAddress) {
+        if (isConnected()) {
+            if (isConnected(macAddress)) {
                 // Already connected
                 connectionData!!.isActive = true
                 result.success(true)
@@ -213,13 +227,16 @@ class BLEManager(context: Context) : IBluetoothManager() {
 //    }
 
     fun disconnect(result: FlutterResultWrapper, delay: Int) {
+        if (delay <= 0) {
+            removeConnectionData()
+            result.success(true)
+            return
+        }
         connectionData?.isActive = false
         Observable.timer(delay.toLong(), TimeUnit.MILLISECONDS)
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe {
-                    if (connectionData?.isActive == false) {
-                        removeConnectionData()
-                    }
+                    if (connectionData?.isActive == false) removeConnectionData()
                 }
         result.success(true)
     }

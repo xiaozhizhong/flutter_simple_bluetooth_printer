@@ -99,6 +99,12 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
             "stopDiscovery" -> ensureBluetoothAvailable(isScan = true, result = result) {
                 bleManager.stopDiscovery(result.toWrapper)
             }
+            "ensureConnected" -> ensureBluetoothAvailable(isScan = false, result = result) {
+                val address: String = call.argument("address")!!
+                val isLE: Boolean = call.argument("isLE") ?: true
+                if (isLE) bleManager.ensureConnected(address, result.toWrapper)
+                else classicManager.ensureConnected(address, result.toWrapper)
+            }
             "connect" -> ensureBluetoothAvailable(isScan = false, result = result) {
                 val address: String? = call.argument("address")
                 val config = ConnectionConfig.fromCall(call)
@@ -113,7 +119,7 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
                 val isBle: Boolean = call.argument("isBLE") ?: false
                 val delay: Int = call.argument("delay") ?: 0
                 if (isBle) bleManager.disconnect(result.toWrapper, delay)
-                else classicManager.disconnect(result.toWrapper)
+                else classicManager.disconnect(result.toWrapper, delay)
             }
             "setupNotification" -> ensureBluetoothAvailable(isScan = false, result = result) {
                 val characteristicUuid: String = call.argument("characteristicUuid")!!

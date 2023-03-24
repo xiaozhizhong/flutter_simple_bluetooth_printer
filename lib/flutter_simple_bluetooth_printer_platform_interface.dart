@@ -73,6 +73,10 @@ abstract class FlutterSimpleBluetoothPrinterPlatform extends PlatformInterface {
 
   Stream<BTConnectState> get connectState;
 
+  Future<bool> ensureConnected({required String address, required bool isLE}) async {
+    throw UnimplementedError('ensureConnected() has not been implemented.');
+  }
+
   Future<bool> writeText(String text, {String? characteristicUuid}) async {
     throw UnimplementedError('writeText() has not been implemented.');
   }

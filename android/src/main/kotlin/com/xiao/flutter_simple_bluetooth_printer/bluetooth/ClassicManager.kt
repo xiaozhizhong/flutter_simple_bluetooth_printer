@@ -2,18 +2,17 @@ package com.xiao.flutter_simple_bluetooth_printer.bluetooth
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.util.Log
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
+import io.reactivex.rxjava3.core.Observable
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import io.flutter.plugin.common.MethodChannel.Result
-import io.reactivex.rxjava3.core.Observable
-import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 /**
  * @author xiao
@@ -22,11 +21,15 @@ import java.util.*
 
 class ClassicManager(context: Context) : IBluetoothManager() {
 
+    companion object {
+        val DEFAULT_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+    }
+
     private val bluetoothManager: BluetoothManager? = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager?
     val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
 
-    private var mConnectThread: ConnectThread? = null
-    private var mConnectedThread: ConnectedThread? = null
+    private var connectionThread: ConnectionThread? = null
+
     private var mState: BTConnectState = BTConnectState.Disconnect
 
     private fun doUpdateConnectionState(state: BTConnectState) {
@@ -36,11 +39,21 @@ class ClassicManager(context: Context) : IBluetoothManager() {
         }
     }
 
-    /**
-     * Start the ConnectThread to initiate a connection to a remote device.
-     *
-     * @param address The BluetoothDevice address to connect
-     */
+    private fun isConnected() = connectionThread?.requestedClosing != true
+
+    private fun isConnected(macAddress: String) = isConnected() && connectionThread?.macAddress == macAddress
+
+    fun ensureConnected(address: String, result: FlutterResultWrapper) {
+        if (isConnected(address)) {
+            // Already connected
+            connectionThread?.isActive = true
+            result.success(true)
+            return
+        }
+        result.success(false)
+    }
+
+    @SuppressLint("MissingPermission")
     @Synchronized
     fun connect(address: String?, result: FlutterResultWrapper) {
         if (address.isNullOrEmpty()) {
@@ -48,219 +61,169 @@ class ClassicManager(context: Context) : IBluetoothManager() {
             return
         }
 
+        if (isConnected()) {
+            if (isConnected(address)) {
+                // Already connected
+                connectionThread?.isActive = true
+                result.success(true)
+                return
+            }
+            // Disconnect the previous connection
+            disconnect()
+        }
+
         val device = bluetoothAdapter!!.getRemoteDevice(address)
-
-        // Cancel any thread attempting to make a connection
-        if (mState == BTConnectState.Connecting) {
-            if (mConnectThread != null) {
-                mConnectThread!!.cancel()
-                mConnectThread = null
-            }
+        if (device == null) {
+            result.error(BTError.ErrorWithMessage.ordinal.toString(), "device not found by $address", null)
+            return
         }
-
-        // Cancel any thread currently running a connection
-        if (mConnectedThread != null) {
-            mConnectedThread!!.cancel()
-            mConnectedThread = null
-        }
-        Log.d("ClassicManager", "try connecting to $address")
-
         doUpdateConnectionState(BTConnectState.Connecting)
-        // Start the thread to connect with the given device
-        mConnectThread = ConnectThread(device, result)
-        mConnectThread!!.start()
-    }
 
-    /**
-     * Stop all threads
-     */
-    @Synchronized
-    fun disconnect(result: FlutterResultWrapper) {
-        if (mConnectThread != null) {
-            mConnectThread!!.cancel()
-            mConnectThread = null
-        }
-        if (mConnectedThread != null) {
-            mConnectedThread!!.cancel()
-            mConnectedThread = null
-        }
-        doUpdateConnectionState(BTConnectState.Disconnect)
-        result.success(true)
-        Log.d("ClassicManager", "disconnect")
-    }
-
-    /**
-     * Write to the ConnectedThread in an unsynchronized manner
-     *
-     * @param out The bytes to write
-     * @see ConnectedThread.write
-     */
-    fun writeRawData(out: ByteArray, result: FlutterResultWrapper) {
-        // Create temporary object
-        var r: ConnectedThread? = null
-        // Synchronize a copy of the ConnectedThread
-        synchronized(this@ClassicManager) {
-            if (mState == BTConnectState.Connected) r = mConnectedThread
-        }
-        if (r == null) {
-            result.error(BTError.ErrorWithMessage.ordinal.toString(), "Not connect to device yet", null)
-        } else {
-            // Perform the write unsynchronized
-            r!!.write(out, result)
-        }
-    }
-
-    /**
-     * This thread runs while attempting to make an outgoing connection
-     * with a device. It runs straight through; the connection either
-     * succeeds or fails.
-     */
-    @SuppressLint("MissingPermission")
-    private inner class ConnectThread(
-            private val mmDevice: BluetoothDevice,
-            private val mmResult: FlutterResultWrapper,
-    ) : Thread() {
-        private val mmSocket: BluetoothSocket?
-        override fun run() {
-            name = "ConnectThread"
-            if (mmSocket == null) {
-                onConnectionFailed("Socket: create() failed")
+        try {
+            val socket = device.createRfcommSocketToServiceRecord(DEFAULT_UUID)
+            if (socket == null) {
+                doUpdateConnectionState(BTConnectState.Fail)
+                result.error(BTError.ErrorWithMessage.ordinal.toString(), "socket connection not established", null)
                 return
             }
 
-            // Always cancel discovery because it will slow down a connection
-            bluetoothAdapter?.cancelDiscovery()
+            // Cancel discovery, even though we didn't start it
+            bluetoothAdapter.cancelDiscovery()
 
-            // Make a connection to the BluetoothSocket
-            try {
-                mmSocket.connect()
-            } catch (e: Exception) {
-                // Close the socket
-                try {
-                    mmSocket.close()
-                } catch (e2: IOException) {
-                    Log.e("ClassicManager", "unable to close() socket during connection failure")
-                }
-                onConnectionFailed(e.toString())
-                return
-            }
+            socket.connect()
+            connectionThread = ConnectionThread(address, socket)
+            connectionThread!!.start()
 
-            // Reset the ConnectThread because we're done
-            synchronized(this@ClassicManager) { mConnectThread = null }
-
-            // Start the connected thread
-            onConnected(mmSocket)
-        }
-
-        @Synchronized
-        private fun onConnectionFailed(error: String) {
-            mmResult.error(BTError.ErrorWithMessage.ordinal.toString(), error, null)
-            synchronized(this@ClassicManager) { mConnectThread = null }
-            doUpdateConnectionState(BTConnectState.Fail)
-        }
-
-
-        /**
-         * Start the ConnectedThread to begin managing a Bluetooth connection
-         *
-         * @param socket The BluetoothSocket on which the connection was made
-         */
-        @Synchronized
-        private fun onConnected(socket: BluetoothSocket) {
-            // Cancel the thread that completed the connection
-            if (mConnectThread != null) {
-                mConnectThread!!.cancel()
-                mConnectThread = null
-            }
-
-            // Cancel any thread currently running a connection
-            if (mConnectedThread != null) {
-                mConnectedThread!!.cancel()
-                mConnectedThread = null
-            }
             doUpdateConnectionState(BTConnectState.Connected)
-
-            Log.d("ClassicManager", "connected to ${mmDevice.address}")
-
-            // Start the thread to manage the connection and perform transmissions
-            mConnectedThread = ConnectedThread(socket)
-            mConnectedThread!!.start()
-            mmResult.success(true)
+            result.success(true)
+        } catch (e: Exception) {
+            doUpdateConnectionState(BTConnectState.Fail)
+            result.error(BTError.ErrorWithMessage.ordinal.toString(), e.toString(), null)
         }
+    }
 
-        fun cancel() {
-            try {
-                mmSocket?.close()
-            } catch (e: IOException) {
-                Log.e("ClassicManager", "close() of connect socket failed")
-            }
+    fun disconnect(result: FlutterResultWrapper, delay: Int) {
+        if (delay <= 0) {
+            disconnect()
+            result.success(true)
+            return
         }
+        connectionThread?.isActive = false
+        Observable.timer(delay.toLong(), TimeUnit.MILLISECONDS)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe {
+                    if (connectionThread?.isActive == false) disconnect()
+                }
+        result.success(true)
+    }
+
+    private fun disconnect() {
+        connectionThread?.cancel()
+        connectionThread = null
+    }
+
+    fun writeRawData(out: ByteArray, result: FlutterResultWrapper) {
+        if (!isConnected()) {
+            result.error(BTError.ErrorWithMessage.ordinal.toString(), "Not connect to device yet", null)
+            return
+        }
+        connectionThread?.write(out, result)
+    }
+
+    private fun onDisconnected() {
+        doUpdateConnectionState(BTConnectState.Disconnect)
+    }
+
+    /// Thread to handle connection I/O
+    inner class ConnectionThread constructor(val macAddress: String, socket: BluetoothSocket) : Thread() {
+        private val socket: BluetoothSocket?
+        private val input: InputStream?
+        private val output: OutputStream?
+        var requestedClosing = false
+        var isActive = true
 
         init {
-            var tmp: BluetoothSocket? = null
-
-            // Get a BluetoothSocket for a connection with the
-            // given BluetoothDevice
+            this.socket = socket
+            var tmpIn: InputStream? = null
+            var tmpOut: OutputStream? = null
             try {
-                tmp = mmDevice.createInsecureRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805f9b34fb"))
+                tmpIn = socket.inputStream
+                tmpOut = socket.outputStream
             } catch (e: IOException) {
-                Log.e("ClassicManager", "Socket: create() failed")
+                e.printStackTrace()
             }
-            mmSocket = tmp
+            input = tmpIn
+            output = tmpOut
         }
-    }
 
-    /**
-     * This thread runs during a connection with a remote device.
-     * It handles all incoming and outgoing transmissions.
-     */
-    private inner class ConnectedThread(private val mmSocket: BluetoothSocket) : Thread() {
-
-        private val mmInStream: InputStream? = mmSocket.inputStream
-        private val mmOutStream: OutputStream? = mmSocket.outputStream
-        private val mmBuffer: ByteArray = ByteArray(1024) // mmBuffer store for the stream
-
+        /// Thread main code
         override fun run() {
-            // Keep listening to the InputStream while connected
-            while (true) {
-                // Read from the InputStream.
+            val buffer = ByteArray(1024)
+            var bytes: Int
+            while (!requestedClosing) {
                 try {
-                    mmInStream?.read(mmBuffer)
+                    bytes = input!!.read(buffer)
                 } catch (e: IOException) {
-                    onConnectionLost()
+                    // `input.read` throws when closed by remote device
                     break
                 }
             }
+
+            // Make sure output stream is closed
+            if (output != null) {
+                try {
+                    output.close()
+                } catch (_: Exception) {
+                }
+            }
+
+            // Make sure input stream is closed
+            if (input != null) {
+                try {
+                    input.close()
+                } catch (_: Exception) {
+                }
+            }
+
+            // Callback on disconnected
+            onDisconnected()
+
+            // Just prevent unnecessary `cancel`ing
+            requestedClosing = true
         }
 
-        /**
-         * Indicate that the connection was lost
-         */
-        private fun onConnectionLost() {
-            Log.d("ClassicManager", "connection lost")
-            doUpdateConnectionState(BTConnectState.Disconnect)
-        }
-
-        /**
-         * Write to the connected OutStream.
-         * @param bytes The bytes to write
-         */
+        /// Writes to output stream
         fun write(bytes: ByteArray?, result: FlutterResultWrapper) {
             try {
-                mmOutStream?.write(bytes)
+                output!!.write(bytes)
+                result.success(true)
             } catch (e: IOException) {
-                Log.e("ClassicManager", "Exception during write", e)
-                result.error(BTError.ErrorWithMessage.ordinal.toString(), "Exception during write: $e", null)
-                return
+                e.printStackTrace()
+                result.error(BTError.ErrorWithMessage.ordinal.toString(), e.toString(), null)
             }
-            result.success(true)
         }
 
+        /// Stops the thread, disconnects
         fun cancel() {
+            if (requestedClosing) {
+                return
+            }
+            requestedClosing = true
+
+            // Flush output buffers befoce closing
             try {
-                mmSocket.close()
-            } catch (e: IOException) {
-                Log.e("ClassicManager", "close() of connect socket failed")
+                output?.flush()
+            } catch (_: Exception) {
+            }
+
+            // Close the connection socket
+            if (socket != null) {
+                try {
+                    // Might be useful (see https://stackoverflow.com/a/22769260/4880243)
+                    sleep(111)
+                    socket.close()
+                } catch (_: Exception) {
+                }
             }
         }
     }
