@@ -39,7 +39,7 @@ class ClassicManager(context: Context) : IBluetoothManager() {
         }
     }
 
-    private fun isConnected() = connectionThread?.requestedClosing != true
+    private fun isConnected() = connectionThread != null && !connectionThread!!.requestedClosing
 
     private fun isConnected(macAddress: String) = isConnected() && connectionThread?.macAddress == macAddress
 
@@ -54,7 +54,6 @@ class ClassicManager(context: Context) : IBluetoothManager() {
     }
 
     @SuppressLint("MissingPermission")
-    @Synchronized
     fun connect(address: String?, result: FlutterResultWrapper) {
         if (address.isNullOrEmpty()) {
             result.error(BTError.ErrorWithMessage.ordinal.toString(), "address is null", null)
@@ -194,8 +193,12 @@ class ClassicManager(context: Context) : IBluetoothManager() {
 
         /// Writes to output stream
         fun write(bytes: ByteArray?, result: FlutterResultWrapper) {
+            if (output == null) {
+                result.error(BTError.ErrorWithMessage.ordinal.toString(), "output stream is null", null)
+                return
+            }
             try {
-                output!!.write(bytes)
+                output.write(bytes)
                 result.success(true)
             } catch (e: IOException) {
                 e.printStackTrace()
