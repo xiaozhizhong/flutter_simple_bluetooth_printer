@@ -230,6 +230,7 @@ class BLEManager(context: Context) : IBluetoothManager(context) {
                 .let { connectionData?.addDisposable(it) }
     }
 
+    @SuppressLint("CheckResult")
     fun disconnect(result: FlutterResultWrapper, delay: Int) {
         if (delay <= 0) {
             removeConnectionData()
@@ -237,9 +238,9 @@ class BLEManager(context: Context) : IBluetoothManager(context) {
             return
         }
         connectionData?.isActive = false
-        Observable.timer(delay.toLong(), TimeUnit.MILLISECONDS)
+        Single.timer(delay.toLong(), TimeUnit.MILLISECONDS)
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe {
+                .subscribe { _ ->
                     if (connectionData?.isActive == false) removeConnectionData()
                 }
         result.success(true)

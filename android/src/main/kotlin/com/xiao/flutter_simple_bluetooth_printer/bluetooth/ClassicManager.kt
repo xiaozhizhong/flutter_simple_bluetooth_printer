@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothSocket
 import android.content.Context
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Observable
+import io.reactivex.rxjava3.core.Single
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -27,11 +28,12 @@ class ClassicManager(context: Context) : IBluetoothManager(context) {
 
     private var mState: BTConnectState = BTConnectState.Disconnect
 
+    @SuppressLint("CheckResult")
     private fun doUpdateConnectionState(state: BTConnectState) {
-        Observable.just(state).observeOn(AndroidSchedulers.mainThread()).subscribe {
-            if (mState == it) return@subscribe
+        Single.just(state).observeOn(AndroidSchedulers.mainThread()).subscribe { s ->
+            if (mState == s) return@subscribe
             mState = state
-            updateConnectionState(it)
+            updateConnectionState(s)
         }
     }
 
@@ -97,6 +99,7 @@ class ClassicManager(context: Context) : IBluetoothManager(context) {
         }
     }
 
+    @SuppressLint("CheckResult")
     fun disconnect(result: FlutterResultWrapper, delay: Int) {
         if (delay <= 0) {
             disconnect()
@@ -104,9 +107,9 @@ class ClassicManager(context: Context) : IBluetoothManager(context) {
             return
         }
         connectionThread?.isActive = false
-        Observable.timer(delay.toLong(), TimeUnit.MILLISECONDS)
+        Single.timer(delay.toLong(), TimeUnit.MILLISECONDS)
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe {
+                .subscribe { _ ->
                     if (connectionThread?.isActive == false) disconnect()
                 }
         result.success(true)

@@ -49,5 +49,4 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "com.polidea.rxandroidble3:rxandroidble:1.17.2"
     implementation 'io.reactivex.rxjava3:rxandroid:3.0.2'
-    implementation 'com.jakewharton.rx3:replaying-share-kotlin:3.0.0'
 }
