@@ -6,8 +6,10 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.ParcelUuid
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
+import com.polidea.rxandroidble3.scan.ScanFilter
 import com.xiao.flutter_simple_bluetooth_printer.bluetooth.*
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -18,6 +20,7 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
+import java.util.UUID
 
 /** FlutterSimpleBluetoothPrinterPlugin */
 class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, PluginRegistry.RequestPermissionsResultListener,
@@ -94,7 +97,10 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
                 bleManager.getBondedDevice(result.toWrapper)
             }
             "startDiscovery" -> ensureBluetoothAvailable(isScan = true, result = result) {
-                bleManager.discovery(result.toWrapper)
+                val scanFilters = call.argument<List<Map<String, Any>>?>("filters")
+                        ?.map { ScanFilter.Builder().fromMap(it) }
+                        ?.toTypedArray()
+                bleManager.discovery(result.toWrapper, scanFilters)
             }
             "stopDiscovery" -> ensureBluetoothAvailable(isScan = true, result = result) {
                 bleManager.stopDiscovery(result.toWrapper)
@@ -253,5 +259,12 @@ class FlutterSimpleBluetoothPrinterPlugin : FlutterPlugin, MethodCallHandler, Pl
         return false
     }
 
+}
+
+private fun ScanFilter.Builder.fromMap(map: Map<String, Any>): ScanFilter {
+    return this.setDeviceName(map["deviceName"] as String?)
+            .setDeviceAddress(map["deviceAddress"] as String?)
+            .setServiceUuid((map["serviceUuid"] as String?)?.let { uuid -> ParcelUuid.fromString(uuid) })
+            .build()
 }
 

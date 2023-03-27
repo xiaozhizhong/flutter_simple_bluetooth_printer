@@ -5,11 +5,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_simple_bluetooth_printer/flutter_simple_bluetooth_printer.dart';
-import 'package:flutter_simple_bluetooth_printer/models/bt_error.dart';
-import 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
-import 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
-import 'package:flutter_simple_bluetooth_printer/models/connection_config.dart';
-import 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
 import 'package:rxdart/rxdart.dart';
 import 'flutter_simple_bluetooth_printer_platform_interface.dart';
 
@@ -56,6 +51,9 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
   bool _connectionIsLE = false;
 
   @override
+  bool get connectionIsLe => _connectionIsLE;
+
+  @override
   Future<BTState> getBluetoothState() async {
     var state = await methodChannel.invokeMethod("getBluetoothState");
     return BTState.from(state);
@@ -77,13 +75,16 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
 
   /// Starts scan for Bluetooth LE devices
   /// Note: This is a continuous behavior, don't forget to call [stopDiscovery].
+  /// [scanFilters] filters the scan results.
   /// Throw [BTException] if failed.
   @override
-  Stream<BluetoothDevice> discovery() async* {
+  Stream<BluetoothDevice> discovery({List<ScanFilter>? scanFilters}) async* {
     try {
       // Clear result
       _scanResults.add([]);
-      await methodChannel.invokeMethod("startDiscovery");
+      Map<String, dynamic> args = {};
+      args["filters"] = scanFilters == null || scanFilters.isEmpty ? null : scanFilters.map((e) => e.toMap()).toList();
+      await methodChannel.invokeMethod("startDiscovery", args);
       yield* _scanResultMethodStream
           .takeUntil(_stopScanPill)
           .doOnDone(stopDiscovery)
@@ -136,12 +137,13 @@ class MethodChannelFlutterSimpleBluetoothPrinter extends FlutterSimpleBluetoothP
   }
 
   /// Scan for Bluetooth LE devices until [timeout] is reached.
+  /// [scanFilters] filters the scan results.
   /// Throw [BTException] if failed.
   @override
-  Future<List<BluetoothDevice>> scan({required Duration timeout}) async {
+  Future<List<BluetoothDevice>> scan({required Duration timeout, List<ScanFilter>? scanFilters}) async {
     try {
       Future.delayed(timeout).whenComplete(() => _stopScanPill.add(null));
-      await discovery().drain();
+      await discovery(scanFilters: scanFilters).drain();
       return _scanResults.value;
     } on BTException catch (_) {
       rethrow;

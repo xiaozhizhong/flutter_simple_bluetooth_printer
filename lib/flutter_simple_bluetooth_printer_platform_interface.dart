@@ -4,6 +4,7 @@ import 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/connection_config.dart';
 import 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
+import 'package:flutter_simple_bluetooth_printer/models/scan_filter.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'flutter_simple_bluetooth_printer_method_channel.dart';
 
@@ -39,7 +40,7 @@ abstract class FlutterSimpleBluetoothPrinterPlatform extends PlatformInterface {
 
   Stream<List<BluetoothDevice>> get scanResults;
 
-  Stream<BluetoothDevice> discovery() async* {
+  Stream<BluetoothDevice> discovery({List<ScanFilter>? scanFilters}) async* {
     throw UnimplementedError('discovery() has not been implemented.');
   }
 
@@ -47,13 +48,15 @@ abstract class FlutterSimpleBluetoothPrinterPlatform extends PlatformInterface {
     throw UnimplementedError('stopDiscovery() has not been implemented.');
   }
 
-  Future<List<BluetoothDevice>> scan({required Duration timeout}) async {
+  Future<List<BluetoothDevice>> scan({required Duration timeout, List<ScanFilter>? scanFilters}) async {
     throw UnimplementedError('scan() has not been implemented.');
   }
 
   Future<bool> connect({required String address, required ConnectionConfig config}) async {
     throw UnimplementedError('connect() has not been implemented.');
   }
+
+  bool get connectionIsLe;
 
   Future<bool> disconnect({required Duration delay}) async {
     throw UnimplementedError('disconnect() has not been implemented.');

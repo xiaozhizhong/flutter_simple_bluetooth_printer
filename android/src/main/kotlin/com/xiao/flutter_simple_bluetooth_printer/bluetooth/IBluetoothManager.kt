@@ -1,5 +1,8 @@
 package com.xiao.flutter_simple_bluetooth_printer.bluetooth
 
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.Context
 import io.flutter.plugin.common.EventChannel
 
 /**
@@ -7,8 +10,12 @@ import io.flutter.plugin.common.EventChannel
  * @date 2023/01
  */
 
-abstract class IBluetoothManager {
+abstract class IBluetoothManager(context: Context) {
     private var eventSink: EventChannel.EventSink? = null
+
+    private val bluetoothManager: BluetoothManager? = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager?
+    val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
+
     fun bindEventSink(sink: EventChannel.EventSink?) {
         eventSink = sink
     }

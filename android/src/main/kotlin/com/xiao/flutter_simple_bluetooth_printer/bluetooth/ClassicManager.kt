@@ -1,11 +1,8 @@
 package com.xiao.flutter_simple_bluetooth_printer.bluetooth
 
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
-import android.util.Log
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Observable
 import java.io.IOException
@@ -19,14 +16,12 @@ import java.util.concurrent.TimeUnit
  * @date 2023/01
  */
 
-class ClassicManager(context: Context) : IBluetoothManager() {
+class ClassicManager(context: Context) : IBluetoothManager(context) {
 
     companion object {
         val DEFAULT_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        const val MAX_DATA_TO_WRITE_TO_STREAM_AT_ONCE = 1024
     }
-
-    private val bluetoothManager: BluetoothManager? = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager?
-    val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
 
     private var connectionThread: ConnectionThread? = null
 
@@ -34,8 +29,9 @@ class ClassicManager(context: Context) : IBluetoothManager() {
 
     private fun doUpdateConnectionState(state: BTConnectState) {
         Observable.just(state).observeOn(AndroidSchedulers.mainThread()).subscribe {
-            updateConnectionState(it)
+            if (mState == it) return@subscribe
             mState = state
+            updateConnectionState(it)
         }
     }
 
@@ -192,17 +188,36 @@ class ClassicManager(context: Context) : IBluetoothManager() {
         }
 
         /// Writes to output stream
-        fun write(bytes: ByteArray?, result: FlutterResultWrapper) {
+        fun write(bytes: ByteArray, result: FlutterResultWrapper) {
             if (output == null) {
                 result.error(BTError.ErrorWithMessage.ordinal.toString(), "output stream is null", null)
                 return
             }
             try {
-                output.write(bytes)
+                if (bytes.size > MAX_DATA_TO_WRITE_TO_STREAM_AT_ONCE) {
+                    writeLong(bytes)
+                } else {
+                    output.write(bytes)
+                }
                 result.success(true)
             } catch (e: IOException) {
                 e.printStackTrace()
                 result.error(BTError.ErrorWithMessage.ordinal.toString(), e.toString(), null)
+            }
+        }
+
+
+        private fun writeLong(bytes: ByteArray) {
+            var length = bytes.size
+            var start = 0
+            var end: Int
+            while (length > 0) {
+                end = if (length > MAX_DATA_TO_WRITE_TO_STREAM_AT_ONCE) MAX_DATA_TO_WRITE_TO_STREAM_AT_ONCE else length
+                this.output?.write(bytes, start, end)
+                this.output?.flush()
+                sleep(10L)
+                start += end
+                length -= end
             }
         }
 
@@ -213,9 +228,11 @@ class ClassicManager(context: Context) : IBluetoothManager() {
             }
             requestedClosing = true
 
-            // Flush output buffers befoce closing
+            // Flush output buffers before closing
             try {
+                input?.close()
                 output?.flush()
+                output?.close()
             } catch (_: Exception) {
             }
 

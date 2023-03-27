@@ -1,18 +1,23 @@
 package com.xiao.flutter_simple_bluetooth_printer.bluetooth
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
-import com.polidea.rxandroidble3.*
+import com.polidea.rxandroidble3.RxBleClient
+import com.polidea.rxandroidble3.RxBleConnection
+import com.polidea.rxandroidble3.RxBleDevice
+import com.polidea.rxandroidble3.Timeout
 import com.polidea.rxandroidble3.scan.IsConnectable
+import com.polidea.rxandroidble3.scan.ScanFilter
 import com.polidea.rxandroidble3.scan.ScanResult
 import com.polidea.rxandroidble3.scan.ScanSettings
 import io.flutter.plugin.common.MethodChannel
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
-import io.reactivex.rxjava3.core.Single
-import io.reactivex.rxjava3.disposables.Disposable
 import io.reactivex.rxjava3.core.Observable
+import io.reactivex.rxjava3.core.Single
 import io.reactivex.rxjava3.disposables.CompositeDisposable
+import io.reactivex.rxjava3.disposables.Disposable
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -23,7 +28,7 @@ import java.util.concurrent.TimeUnit
  * Bluetooth LE Manager, Using https://github.com/dariuszseweryn/RxAndroidBle
  */
 
-class BLEManager(context: Context) : IBluetoothManager() {
+class BLEManager(context: Context) : IBluetoothManager(context) {
     companion object {
         const val CLIENT_CHARACTERISTIC_CONFIG = "00002902-0000-1000-8000-00805f9b34fb"
     }
@@ -67,7 +72,7 @@ class BLEManager(context: Context) : IBluetoothManager() {
         }
     }
 
-    fun discovery(result: FlutterResultWrapper) {
+    fun discovery(result: FlutterResultWrapper, scanFilters: Array<ScanFilter>?) {
         // Clear the list of nearby devices
         nearbyDevices.clear()
 
@@ -75,7 +80,12 @@ class BLEManager(context: Context) : IBluetoothManager() {
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .build()
-        scanDisposable = rxBleClient.scanBleDevices(scanSettings)
+        val scanObserver = if (scanFilters.isNullOrEmpty()) {
+            rxBleClient.scanBleDevices(scanSettings)
+        } else {
+            rxBleClient.scanBleDevices(scanSettings, *scanFilters)
+        }
+        scanDisposable = scanObserver
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe({ scanResult ->
                     result.success(null)
@@ -123,6 +133,9 @@ class BLEManager(context: Context) : IBluetoothManager() {
             // Disconnect the previous connection
             removeConnectionData()
         }
+        // Cancel discovery, even though we didn't start it
+        cancelBluetoothDiscovery()
+
         connectionData = BLEConnectionData(macAddress)
 
         observeConnectionState(device)
@@ -145,6 +158,11 @@ class BLEManager(context: Context) : IBluetoothManager() {
                     result.error(error.code, error.message, error.details)
                 })
                 .let { connectionData?.addDisposable(it) }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun cancelBluetoothDiscovery() {
+        bluetoothAdapter?.cancelDiscovery()
     }
 
     private fun observeConnectionState(device: RxBleDevice) {
@@ -211,20 +229,6 @@ class BLEManager(context: Context) : IBluetoothManager() {
                         })
                 .let { connectionData?.addDisposable(it) }
     }
-//
-//    private fun rescanAndConnect(macAddress: String) {
-//        val scanSettings = ScanSettings.Builder()
-//                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-//                .setCallbackType(ScanSettings.CALLBACK_TYPE_FIRST_MATCH)
-//                .build()
-//        val filter = ScanFilter.Builder()
-//                .setDeviceAddress(macAddress)
-//                .build()
-//        rxBleClient.scanBleDevices(scanSettings, filter)
-//                .take(5000, TimeUnit.MILLISECONDS)
-//                .doFinally { }
-//
-//    }
 
     fun disconnect(result: FlutterResultWrapper, delay: Int) {
         if (delay <= 0) {

@@ -4,6 +4,7 @@ import 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
 import 'package:flutter_simple_bluetooth_printer/models/connection_config.dart';
 import 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
+import 'package:flutter_simple_bluetooth_printer/models/scan_filter.dart';
 import 'flutter_simple_bluetooth_printer_platform_interface.dart';
 
 export 'package:flutter_simple_bluetooth_printer/models/bt_error.dart';
@@ -11,6 +12,7 @@ export 'package:flutter_simple_bluetooth_printer/models/bt_state.dart';
 export 'package:flutter_simple_bluetooth_printer/models/connect_state.dart';
 export 'package:flutter_simple_bluetooth_printer/models/printer_devices.dart';
 export 'package:flutter_simple_bluetooth_printer/models/connection_config.dart';
+export 'package:flutter_simple_bluetooth_printer/models/scan_filter.dart';
 
 /// By Xiao 2023/1
 class FlutterSimpleBluetoothPrinter {
@@ -40,8 +42,9 @@ class FlutterSimpleBluetoothPrinter {
 
   /// Starts scan for Bluetooth LE devices
   /// Note: This is a continuous behavior, don't forget to call [stopDiscovery].
+  /// [scanFilters] The scan filters. Default to null.
   /// Throw [BTException] if failed.
-  Stream<BluetoothDevice> discovery() {
+  Stream<BluetoothDevice> discovery({List<ScanFilter>? scanFilters}) {
     return FlutterSimpleBluetoothPrinterPlatform.instance.discovery();
   }
 
@@ -52,8 +55,9 @@ class FlutterSimpleBluetoothPrinter {
   }
 
   /// Scan for Bluetooth LE devices until [timeout] is reached.
+  /// [scanFilters] The scan filters. Default to null.
   /// Throw [BTException] if failed.
-  Future<List<BluetoothDevice>> scan({required Duration timeout}) {
+  Future<List<BluetoothDevice>> scan({required Duration timeout, List<ScanFilter>? scanFilters}) {
     return FlutterSimpleBluetoothPrinterPlatform.instance.scan(timeout: timeout);
   }
 
@@ -107,6 +111,9 @@ class FlutterSimpleBluetoothPrinter {
   Future<bool> ensureConnected({required String address, bool isLE = true}) {
     return FlutterSimpleBluetoothPrinterPlatform.instance.ensureConnected(address: address, isLE: isLE);
   }
+
+  /// Check if current active connection type is LE.
+  bool get connectionIsLe => FlutterSimpleBluetoothPrinterPlatform.instance.connectionIsLe;
 
   /// Write text to the connected device.
   /// * Must connect to a device first.
