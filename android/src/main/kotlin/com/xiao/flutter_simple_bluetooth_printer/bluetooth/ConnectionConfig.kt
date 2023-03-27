@@ -11,8 +11,8 @@ sealed class ConnectionConfig {
             return if (isBle) {
                 LEConnectionConfig(
                         autoConnect = call.argument("androidAutoConnect") ?: false,
-                        timeout = call.argument<Long>("timeout")?.toLong() ?: 0,
-                        priority = call.argument("connectionPriority") ?: 0
+                        timeout = call.argument<Int>("timeout")?.toLong() ?: 0,
+                        priority = call.argument<Int>("connectionPriority") ?: 0
                 )
             } else {
                 ClassicConnectionConfig
